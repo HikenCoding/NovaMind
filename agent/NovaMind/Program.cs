@@ -9,7 +9,7 @@ builder.AddOllamaTextGeneration(
     endpoint: new Uri("http://127.0.0.1:11434")
 );
 
-builder.Plugins.AddFromType<HelpSkill>();
+builder.Plugins.AddFromType<HelpSkill>(); //Semantic Kernel is loading the class and NovaMind know the function 'ShowHelp'
 
 var kernel = builder.Build();
 
@@ -19,6 +19,13 @@ while (true)
 {
     Console.Write("NovaMind> ");
     var input = Console.ReadLine();
+
+    if (input == "/help")
+    {
+        var help = kernel.InvokeAsync<string>("HelpSkill", "ShowHelp");
+        Console.WriteLine(await help);
+        continue;
+    }
 
     if (string.IsNullOrWhiteSpace(input))
         continue;
