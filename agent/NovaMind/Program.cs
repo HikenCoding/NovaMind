@@ -10,6 +10,7 @@ builder.AddOllamaTextGeneration(
 );
 
 builder.Plugins.AddFromType<HelpSkill>(); //Semantic Kernel is loading the class and NovaMind know the function 'ShowHelp'
+builder.Plugins.AddFromType<FileSkill>(); // Semantic Kernel is loading the class and NovaMind know the function 'ReadFile'
 
 var kernel = builder.Build();
 
@@ -26,7 +27,13 @@ while (true)
         Console.WriteLine(await help);
         continue;
     }
-
+    if (input.StartsWith("/readfile "))
+    {
+        var path = input.Replace("/readfile ", "").Trim();
+        var fileResult = await kernel.InvokeAsync<string>("FileSkill", "ReadFile", new() { ["path"] = path });
+        Console.WriteLine(fileResult);
+        continue;
+    }
     if (string.IsNullOrWhiteSpace(input))
         continue;
 
