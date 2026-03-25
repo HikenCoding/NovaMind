@@ -9,6 +9,8 @@ builder.AddOllamaTextGeneration(
     endpoint: new Uri("http://127.0.0.1:11434")
 );
 
+builder.Plugins.AddFromType<HelpSkill>();
+
 var kernel = builder.Build();
 
 Console.WriteLine("NovaMind CLI gestartet. Schreib etwas:");
