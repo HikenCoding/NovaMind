@@ -4,15 +4,83 @@ Its a fully local AI-Agent running inside an isolated Ubuntu (WSL2) environment.
 It uses Ollama as the local model runtime and Semantic Kernel as the orchestration layer for prompts, agent logic and future tool integrations. This project is part of a personal portfolio to demonstrate modern AI-agent development using open-source technologies, so everyone can do it without spending money for services. The only maybe neccessary product you need is a device like (notebook, or computer) with solid specification because of RAM usage with Ollama for the Modells.
 
 
-# 📖 Current Features
-- Local AI agent running in the terminal (CLI)
-- Fully offline execution inside Ubuntu (WSL2)
-- Uses Ollama as the model backend
-- Supports the model llama3:latest
-- Integrated with Semantic Kernel for:
-  - Prompt handling
-  - Text generation
-  - Extensibility (tools, memory, planning)
+# ✅ Current Features (English Version)
+1. CLI‑Based AI Agent
+Fully interactive command‑line interface
+
+Command parsing with fallback to LLM responses
+
+Modular architecture using Semantic Kernel plugins
+
+2. FileSkill (File System Tools)
+readfile <path> — Reads and returns file content
+
+writefile <path> <text> — Creates or overwrites files
+
+ls [path] — Lists files and directories
+
+deletefile <path> — Deletes a file
+
+3. MemorySkill (Agent Memory System)
+remember <text> — Stores a memory entry
+
+memory — Displays all stored memory entries
+
+forget <text> — Removes a specific entry
+
+forget * — Clears all memory
+
+4. HelpSkill
+help — Shows all available commands
+
+5. Local LLM Integration
+Uses Ollama as the local model backend
+
+Uses Semantic Kernel for tool execution and orchestration
+
+# 🚀 Planned Features
+1. Memory System 2.0
+Key‑value memory
+
+Categorized memory
+
+Persistent storage (JSON or local DB)
+
+2. PDF Analysis
+Read PDF files
+
+Extract text
+
+Summarize content
+
+Search inside PDFs
+
+3. Code Analysis
+Syntax analysis
+
+Error detection
+
+Code explanation
+
+Refactoring suggestions
+
+4. Agent Loop (Planning + Tool Execution)
+LLM generates a plan
+
+Executes tools step‑by‑step
+
+Evaluates results
+
+Iterates until the task is complete
+
+5. Optional Web UI
+Chat interface
+
+File upload
+
+Tool buttons
+
+Real‑time logs
  
 
 # 🏗️ Architecture Overview
@@ -61,3 +129,9 @@ This repository documents the entire development journey.
 
 
 Have fun by reading, trying it out and also getting inspirate 🔥🤖
+
+
+
+
+
+
