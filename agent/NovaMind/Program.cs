@@ -71,6 +71,28 @@ while (true)
         continue;
     }
 
+        if (input.StartsWith("/deletefile "))
+    {
+        var parts = input.Split(" ", 2);
+        if (parts.Length < 2)
+        {
+            Console.WriteLine("Usage: /deletefile <path>");
+            continue;
+        }
+
+        var path = parts[1];
+
+        var deleteResult = await kernel.InvokeAsync<string>(
+            "FileSkill",
+            "DeleteFile",
+            new() { ["path"] = path }
+        );
+
+        Console.WriteLine(deleteResult);
+        continue;
+    }
+
+
 
     if (string.IsNullOrWhiteSpace(input))
         continue;

@@ -57,5 +57,20 @@ public class FileSkill
         }
     }
 
+    if (input.StartsWith("/ls"))
+    {
+        var parts = input.Split(" ", 2);
+        var path = parts.Length > 1 ? parts[1] : "."; // Standard: aktuelles Verzeichnis
+
+        var lsResult = await kernel.InvokeAsync<string>(
+            "FileSkill",
+            "ListFiles",
+            new() { ["path"] = path }
+        );
+
+        Console.WriteLine(lsResult);
+        continue;
+    }
+
 
 }
