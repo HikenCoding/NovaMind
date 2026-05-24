@@ -126,6 +126,33 @@ This repository documents the entire development journey.
 
 
 
+# 🔮 Future plan
+Also to add Security Features like: 
+-File Hash Scanner (MD5/SHA256)  
+-Detect file tampering by generating and comparing cryptographic hashes.
+
+-File Integrity Monitoring  
+ -Track file changes using a local hash database and change detection.
+
+-Log Analysis Module  
+ -Parse and analyze SSH or web server logs to identify suspicious activity.
+
+-Port Scanner (TCP)  
+ -Scan common ports to detect open services and potential attack surfaces.
+
+-Recon Tools  
+ -Perform DNS lookups, reverse DNS, and WHOIS queries for basic reconnaissance.
+
+-Basic Malware Pattern Scanner  
+ -Identify suspicious strings or known malicious patterns in files.
+
+-Permission Scanner  
+ -Check file and directory permissions for insecure configurations.
+
+-Security Automation Integration  
+ -Combine multiple modules into automated analysis workflows.
+
+
 Have fun by reading, trying it out and also getting inspirate 🔥🤖
 
 
