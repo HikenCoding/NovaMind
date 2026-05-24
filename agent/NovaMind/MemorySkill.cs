@@ -1,39 +1,41 @@
 using Microsoft.SemanticKernel;
-using System.Collections.Generic;
 
 public class MemorySkill
 {
-    private static readonly List<string> _memories = new();
+    private static List<string> _memory = new();
 
     [KernelFunction]
-    public string AddMemory(string text)
+    public string Remember(string text)
     {
-        _memories.Add(text);
-        return $"Memory added (#{_memories.Count - 1}): {text}";
+        _memory.Add(text);
+        return $"Saved to memory: {text}";
     }
 
     [KernelFunction]
-    public string GetMemories()
+    public string ShowMemory()
     {
-        if (_memories.Count == 0)
-            return "No memories stored.";
+        if (_memory.Count == 0)
+            return "Memory is empty.";
 
-        var result = "Stored memories:\n";
-        for (int i = 0; i < _memories.Count; i++)
-            result += $"{i}: {_memories[i]}\n";
+        var result = "Stored memory:\n";
+        foreach (var item in _memory)
+            result += "- " + item + "\n";
 
         return result;
     }
 
     [KernelFunction]
-    public string DeleteMemory(int index)
+    public string Forget(string text)
     {
-        if (index < 0 || index >= _memories.Count)
-            return $"Invalid memory index: {index}";
+        if (text == "*")
+        {
+            _memory.Clear();
+            return "Memory cleared.";
+        }
 
-        var removed = _memories[index];
-        _memories.RemoveAt(index);
+        if (_memory.Remove(text))
+            return $"Removed from memory: {text}";
 
-        return $"Deleted memory #{index}: {removed}";
+        return $"Entry not found: {text}";
     }
 }

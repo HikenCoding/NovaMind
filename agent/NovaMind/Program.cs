@@ -22,12 +22,14 @@ while (true)
     Console.Write("NovaMind> ");
     var input = Console.ReadLine();
 
+    //HELP
     if (input == "/help")
     {
         var help = kernel.InvokeAsync<string>("HelpSkill", "ShowHelp");
         Console.WriteLine(await help);
         continue;
     }
+    //READFILE
     if (input.StartsWith("/readfile "))
     {
         var path = input.Replace("/readfile ", "").Trim();
@@ -35,6 +37,8 @@ while (true)
         Console.WriteLine(fileResult);
         continue;
     }
+
+    //WRITEFILE
     if (input.StartsWith("/writefile "))
     {
         var parts = input.Split(" ", 3); // /writefile pfad text
@@ -57,6 +61,8 @@ while (true)
         continue;
     }
 
+
+    //LS
         if (input.StartsWith("/ls"))
     {
         var parts = input.Split(" ", 2);
@@ -72,6 +78,7 @@ while (true)
         continue;
     }
 
+    //DELETEFILE
         if (input.StartsWith("/deletefile "))
     {
         var parts = input.Split(" ", 2);
@@ -93,47 +100,46 @@ while (true)
         continue;
     }
 
-        if (input.StartsWith("/remember "))
+    // REMEMBER
+    if (input.StartsWith("/remember "))
     {
         var text = input.Substring(10);
 
-        var result = await kernel.InvokeAsync<string>(
-            "MemorySkill", "AddMemory",
+        var memoryAddResult = await kernel.InvokeAsync<string>(
+            "MemorySkill", "Remember",
             new() { ["text"] = text }
         );
 
-        Console.WriteLine(result);
+        Console.WriteLine(memoryAddResult);
         continue;
     }
 
+    //MEMORY
     if (input == "/memory")
     {
-        var result = await kernel.InvokeAsync<string>(
-            "MemorySkill", "GetMemories");
-        Console.WriteLine(result);
+        var memoryListResult = await kernel.InvokeAsync<string>(
+            "MemorySkill", "ShowMemory"
+        );
+
+        Console.WriteLine(memoryListResult);
         continue;
     }
 
+    //FORGET
     if (input.StartsWith("/forget "))
     {
-        if (int.TryParse(input.Substring(8), out int index))
-        {
-            var result = await kernel.InvokeAsync<string>(
-                "MemorySkill", "DeleteMemory",
-                new() { ["index"] = index }
-            );
+        var text = input.Substring(8);
 
-            Console.WriteLine(result);
-        }
-        else
-        {
-            Console.WriteLine("Usage: /forget <index>");
-        }
+        var memoryDeleteResult = await kernel.InvokeAsync<string>(
+            "MemorySkill", "Forget",
+            new() { ["text"] = text }
+        );
 
+        Console.WriteLine(memoryDeleteResult);
         continue;
     }
 
-
+    
     if (string.IsNullOrWhiteSpace(input))
         continue;
 
