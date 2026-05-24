@@ -13,4 +13,19 @@ public class FileSkill
 
         return File.ReadAllText(path);
     }
+
+    [KernelFunction]
+    public string WriteFile(string path, string content)
+    {
+        try
+        {
+            File.WriteAllText(path, content);
+            return $"File written successfully: {path}";
+        }
+        catch (Exception ex)
+        {
+            return $"Error writing file: {ex.Message}";
+        }
+    }
+
 }

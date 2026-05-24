@@ -34,6 +34,28 @@ while (true)
         Console.WriteLine(fileResult);
         continue;
     }
+    if (input.StartsWith("/writefile "))
+    {
+        var parts = input.Split(" ", 3); // /writefile pfad text
+        if (parts.Length < 3)
+        {
+            Console.WriteLine("Usage: /writefile <path> <text>");
+            continue;
+        }
+
+        var path = parts[1];
+        var content = parts[2];
+
+        var writeResult = await kernel.InvokeAsync<string>(
+            "FileSkill",
+            "WriteFile",
+            new() { ["path"] = path, ["content"] = content }
+        );
+
+        Console.WriteLine(writeResult);
+        continue;
+    }
+
     if (string.IsNullOrWhiteSpace(input))
         continue;
 
