@@ -28,4 +28,34 @@ public class FileSkill
         }
     }
 
+    [KernelFunction]
+    public string ListFiles(string path)
+    {
+        try
+        {
+            if (!Directory.Exists(path))
+            {
+                return $"Directory not found: {path}";
+            }
+
+            var files = Directory.GetFiles(path);
+            var dirs = Directory.GetDirectories(path);
+
+            var result = "Directories:\n";
+            foreach (var d in dirs)
+                result += "- " + Path.GetFileName(d) + "\n";
+
+            result += "\nFiles:\n";
+            foreach (var f in files)
+                result += "- " + Path.GetFileName(f) + "\n";
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return $"Error listing directory: {ex.Message}";
+        }
+    }
+
+
 }
