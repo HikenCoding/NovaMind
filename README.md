@@ -1,4 +1,4 @@
-# 🧠 NovaMind - Local AI-Agent (C# + Semantic Kernel + Ollama
+# 🧠 NovaMind - Local AI-Agent (C# + Semantic Kernel + Ollama)
 
 Its a fully local AI-Agent running inside an isolated Ubuntu (WSL2) environment. So you don't have to worry about deleting anything in your main OS.
 It uses Ollama as the local model runtime and Semantic Kernel as the orchestration layer for prompts, agent logic and future tool integrations. This project is part of a personal portfolio to demonstrate modern AI-agent development using open-source technologies, so everyone can do it without spending money for services. The only maybe neccessary product you need is a device like (notebook, or computer) with solid specification because of RAM usage with Ollama for the Modells.
