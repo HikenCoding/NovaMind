@@ -4,12 +4,11 @@ Its a fully local AI-Agent running inside an isolated Ubuntu (WSL2) environment.
 It uses Ollama as the local model runtime and Semantic Kernel as the orchestration layer for prompts, agent logic and future tool integrations. This project is part of a personal portfolio to demonstrate modern AI-agent development using open-source technologies, so everyone can do it without spending money for services. The only maybe neccessary product you need is a device like (notebook, or computer) with solid specification because of RAM usage with Ollama for the Modells.
 
 
-# ✅ Current Features (English Version)
+# ✅ Current Features
 1. CLI‑Based AI Agent
 Fully interactive command‑line interface
 
 Command parsing with fallback to LLM responses
-
 Modular architecture using Semantic Kernel plugins
 
 2. FileSkill (File System Tools)
@@ -23,7 +22,6 @@ deletefile <path> — Deletes a file
 
 3. MemorySkill (Agent Memory System)
 remember <text> — Stores a memory entry
-
 memory — Displays all stored memory entries
 
 forget <text> — Removes a specific entry
