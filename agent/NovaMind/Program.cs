@@ -11,6 +11,7 @@ builder.AddOllamaTextGeneration(
 
 builder.Plugins.AddFromType<HelpSkill>(); //Semantic Kernel is loading the class and NovaMind know the function 'ShowHelp'
 builder.Plugins.AddFromType<FileSkill>(); // Semantic Kernel is loading the class and NovaMind know the function 'ReadFile'
+builder.Plugins.AddFromType<MemorySkill>();
 
 var kernel = builder.Build();
 
@@ -92,6 +93,45 @@ while (true)
         continue;
     }
 
+        if (input.StartsWith("/remember "))
+    {
+        var text = input.Substring(10);
+
+        var result = await kernel.InvokeAsync<string>(
+            "MemorySkill", "AddMemory",
+            new() { ["text"] = text }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+    if (input == "/memory")
+    {
+        var result = await kernel.InvokeAsync<string>(
+            "MemorySkill", "GetMemories");
+        Console.WriteLine(result);
+        continue;
+    }
+
+    if (input.StartsWith("/forget "))
+    {
+        if (int.TryParse(input.Substring(8), out int index))
+        {
+            var result = await kernel.InvokeAsync<string>(
+                "MemorySkill", "DeleteMemory",
+                new() { ["index"] = index }
+            );
+
+            Console.WriteLine(result);
+        }
+        else
+        {
+            Console.WriteLine("Usage: /forget <index>");
+        }
+
+        continue;
+    }
 
 
     if (string.IsNullOrWhiteSpace(input))
