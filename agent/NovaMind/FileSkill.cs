@@ -57,20 +57,25 @@ public class FileSkill
         }
     }
 
-    if (input.StartsWith("/ls"))
+    [KernelFunction]
+    public string DeleteFile(string path)
     {
-        var parts = input.Split(" ", 2);
-        var path = parts.Length > 1 ? parts[1] : "."; // Standard: aktuelles Verzeichnis
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return $"File not found: {path}";
+            }
 
-        var lsResult = await kernel.InvokeAsync<string>(
-            "FileSkill",
-            "ListFiles",
-            new() { ["path"] = path }
-        );
-
-        Console.WriteLine(lsResult);
-        continue;
+            File.Delete(path);
+            return $"File deleted successfully: {path}";
+        }
+        catch (Exception ex)
+        {
+            return $"Error deleting file: {ex.Message}";
+        }
     }
+
 
 
 }
