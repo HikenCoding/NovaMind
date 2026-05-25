@@ -5,14 +5,6 @@ public class MemorySkill
     //first structure : Kategorie
     //second structure: Key->Value
     private static Dictionary<string, Dictionary<string, string>> _memory 
-    = new();
-
-
-   using Microsoft.SemanticKernel;
-
-public class MemorySkill
-{
-    private static Dictionary<string, Dictionary<string, string>> _memory 
         = new();
 
     [KernelFunction]
@@ -127,6 +119,4 @@ public class MemorySkill
 
         return "Invalid format.";
     }
-}
-
 }
