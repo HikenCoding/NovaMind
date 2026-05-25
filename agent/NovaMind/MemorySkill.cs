@@ -76,47 +76,57 @@ public class MemorySkill
     }
 
     [KernelFunction]
-    public string Forget(string input)
+public string Forget(string input)
+{
+    if (input == "*")
     {
-        if (input == "*")
-        {
-            _memory.Clear();
-            return "Memory cleared.";
-        }
-
-        if (input.Contains(":"))
-        {
-            var parts = input.Split(":", 2);
-            var category = parts[0].Trim();
-            var value = parts[1].Trim();
-
-            if (!_memory.ContainsKey(category))
-                return $"Category '{category}' not found.";
-
-            var entry = _memory[category]
-                .FirstOrDefault(kv => kv.Value == value);
-
-            if (entry.Key == null)
-                return $"Entry not found in '{category}'.";
-
-            _memory[category].Remove(entry.Key);
-            return $"Removed from '{category}': {value}";
-        }
-
-        if (input.Contains("="))
-        {
-            var parts = input.Split("=", 2);
-            var key = parts[0].Trim();
-
-            if (!_memory.ContainsKey("general"))
-                return "No general memory found.";
-
-            if (_memory["general"].Remove(key))
-                return $"Removed key '{key}'.";
-
-            return $"Key '{key}' not found.";
-        }
-
-        return "Invalid format.";
+        _memory.Clear();
+        return "Memory cleared.";
     }
+
+    // Format: category: value
+    if (input.Contains(":"))
+    {
+        var parts = input.Split(":", 2);
+        var category = parts[0].Trim();
+        var value = parts[1].Trim();
+
+        if (!_memory.ContainsKey(category))
+            return $"Category '{category}' not found.";
+
+        var entry = _memory[category]
+            .FirstOrDefault(kv => kv.Value == value);
+
+        if (entry.Key == null)
+            return $"Entry not found in '{category}'.";
+
+        _memory[category].Remove(entry.Key);
+        return $"Removed from '{category}': {value}";
+    }
+
+    // Format: key=value
+    if (input.Contains("="))
+    {
+        var parts = input.Split("=", 2);
+        var key = parts[0].Trim();
+
+        if (!_memory.ContainsKey("general"))
+            return "No general memory found.";
+
+        if (_memory["general"].Remove(key))
+            return $"Removed key '{key}'.";
+
+        return $"Key '{key}' not found.";
+    }
+
+    // NEW: Format: key (without =)
+    if (_memory.ContainsKey("general") && _memory["general"].ContainsKey(input))
+    {
+        _memory["general"].Remove(input);
+        return $"Removed key '{input}'.";
+    }
+
+    return "Invalid format.";
+}
+
 }
