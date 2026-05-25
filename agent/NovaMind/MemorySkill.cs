@@ -2,40 +2,131 @@ using Microsoft.SemanticKernel;
 
 public class MemorySkill
 {
-    private static List<string> _memory = new();
+    //first structure : Kategorie
+    //second structure: Key->Value
+    private static Dictionary<string, Dictionary<string, string>> _memory 
+    = new();
+
+
+   using Microsoft.SemanticKernel;
+
+public class MemorySkill
+{
+    private static Dictionary<string, Dictionary<string, string>> _memory 
+        = new();
 
     [KernelFunction]
-    public string Remember(string text)
+    public string Remember(string input)
     {
-        _memory.Add(text);
-        return $"Saved to memory: {text}";
+        // Format 1: category: value
+        // Format 2: key=value (default category: general)
+
+        if (input.Contains(":"))
+        {
+            var parts = input.Split(":", 2);
+            var category = parts[0].Trim();
+            var value = parts[1].Trim();
+
+            if (!_memory.ContainsKey(category))
+                _memory[category] = new();
+
+            var key = "item" + (_memory[category].Count + 1);
+            _memory[category][key] = value;
+
+            return $"Saved under category '{category}': {value}";
+        }
+
+        if (input.Contains("="))
+        {
+            var parts = input.Split("=", 2);
+            var key = parts[0].Trim();
+            var value = parts[1].Trim();
+
+            if (!_memory.ContainsKey("general"))
+                _memory["general"] = new();
+
+            _memory["general"][key] = value;
+
+            return $"Saved key-value: {key} = {value}";
+        }
+
+        return "Invalid format. Use 'category: text' or 'key=value'.";
     }
 
     [KernelFunction]
-    public string ShowMemory()
+    public string ShowMemory(string? category = null)
     {
         if (_memory.Count == 0)
             return "Memory is empty.";
 
-        var result = "Stored memory:\n";
-        foreach (var item in _memory)
-            result += "- " + item + "\n";
+        if (!string.IsNullOrEmpty(category))
+        {
+            if (!_memory.ContainsKey(category))
+                return $"No entries in category '{category}'.";
 
-        return result;
+            var result = $"Memory in category '{category}':\n";
+            foreach (var kv in _memory[category])
+                result += $"- {kv.Key}: {kv.Value}\n";
+
+            return result;
+        }
+
+        // Show all
+        var output = "All memory:\n";
+        foreach (var cat in _memory)
+        {
+            output += $"\n[{cat.Key}]\n";
+            foreach (var kv in cat.Value)
+                output += $"- {kv.Key}: {kv.Value}\n";
+        }
+
+        return output;
     }
 
     [KernelFunction]
-    public string Forget(string text)
+    public string Forget(string input)
     {
-        if (text == "*")
+        if (input == "*")
         {
             _memory.Clear();
             return "Memory cleared.";
         }
 
-        if (_memory.Remove(text))
-            return $"Removed from memory: {text}";
+        if (input.Contains(":"))
+        {
+            var parts = input.Split(":", 2);
+            var category = parts[0].Trim();
+            var value = parts[1].Trim();
 
-        return $"Entry not found: {text}";
+            if (!_memory.ContainsKey(category))
+                return $"Category '{category}' not found.";
+
+            var entry = _memory[category]
+                .FirstOrDefault(kv => kv.Value == value);
+
+            if (entry.Key == null)
+                return $"Entry not found in '{category}'.";
+
+            _memory[category].Remove(entry.Key);
+            return $"Removed from '{category}': {value}";
+        }
+
+        if (input.Contains("="))
+        {
+            var parts = input.Split("=", 2);
+            var key = parts[0].Trim();
+
+            if (!_memory.ContainsKey("general"))
+                return "No general memory found.";
+
+            if (_memory["general"].Remove(key))
+                return $"Removed key '{key}'.";
+
+            return $"Key '{key}' not found.";
+        }
+
+        return "Invalid format.";
     }
+}
+
 }
