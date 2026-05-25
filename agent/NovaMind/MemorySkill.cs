@@ -1,7 +1,43 @@
 using Microsoft.SemanticKernel;
+using System.Text.Json;
+
 
 public class MemorySkill
 {
+    //Define datapath
+    private static readonly string MemoryFilePath = "memory.json";
+
+    //Constructor to load data
+    public MemorySkill()
+    {
+        LoadMemory();
+    }
+
+    private void SaveMemory()
+    {
+        var json = JsonSerializer.Serialize(_memory, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+
+        File.WriteAllText(MemoryFilePath, json);
+    }
+
+
+    private void LoadMemory()
+    {
+        if (!File.Exists(MemoryFilePath))
+            return;
+
+        var json = File.ReadAllText(MemoryFilePath);
+
+        var data = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
+
+        if (data != null)
+            _memory = data;
+}
+
+
     //first structure : Kategorie
     //second structure: Key->Value
     private static Dictionary<string, Dictionary<string, string>> _memory 
@@ -41,7 +77,7 @@ public class MemorySkill
 
             return $"Saved key-value: {key} = {value}";
         }
-
+        SaveMemory();
         return "Invalid format. Use 'category: text' or 'key=value'.";
     }
 
@@ -71,7 +107,7 @@ public class MemorySkill
             foreach (var kv in cat.Value)
                 output += $"- {kv.Key}: {kv.Value}\n";
         }
-
+        
         return output;
     }
 
@@ -101,7 +137,9 @@ public string Forget(string input)
             return $"Entry not found in '{category}'.";
 
         _memory[category].Remove(entry.Key);
+        SaveMemory();
         return $"Removed from '{category}': {value}";
+
     }
 
     // Format: key=value
