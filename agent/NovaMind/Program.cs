@@ -13,6 +13,7 @@ builder.Plugins.AddFromType<HelpSkill>(); //Semantic Kernel is loading the class
 builder.Plugins.AddFromType<FileSkill>(); // Semantic Kernel is loading the class and NovaMind know the function 'ReadFile'
 builder.Plugins.AddFromType<MemorySkill>();
 
+
 var kernel = builder.Build();
 
 Console.WriteLine("NovaMind CLI gestartet. Schreib etwas:");
@@ -103,39 +104,47 @@ while (true)
     // REMEMBER
     if (input.StartsWith("/remember "))
     {
-        var text = input.Substring(10);
+        var parts = input.Split(" ", 2);
+        var text = parts[1];
 
-        var memoryAddResult = await kernel.InvokeAsync<string>(
+        var result = await kernel.InvokeAsync<string>(
             "MemorySkill", "Remember",
-            new() { ["text"] = text }
+            new() { ["input"] = text }
         );
 
-        Console.WriteLine(memoryAddResult);
+        Console.WriteLine(result);
         continue;
     }
 
-    //MEMORY
-    if (input == "/memory")
+
+    // MEMORY
+    if (input.StartsWith("/memory"))
     {
-        var memoryListResult = await kernel.InvokeAsync<string>(
-            "MemorySkill", "ShowMemory"
+        var parts = input.Split(" ", 2);
+        string? category = parts.Length > 1 ? parts[1] : null;
+
+        var result = await kernel.InvokeAsync<string>(
+            "MemorySkill", "ShowMemory",
+            new() { ["category"] = category }
         );
 
-        Console.WriteLine(memoryListResult);
+        Console.WriteLine(result);
         continue;
     }
 
-    //FORGET
+
+    // FORGET
     if (input.StartsWith("/forget "))
     {
-        var text = input.Substring(8);
+        var parts = input.Split(" ", 2);
+        var text = parts[1];
 
-        var memoryDeleteResult = await kernel.InvokeAsync<string>(
+        var result = await kernel.InvokeAsync<string>(
             "MemorySkill", "Forget",
-            new() { ["text"] = text }
+            new() { ["input"] = text }
         );
 
-        Console.WriteLine(memoryDeleteResult);
+        Console.WriteLine(result);
         continue;
     }
 
