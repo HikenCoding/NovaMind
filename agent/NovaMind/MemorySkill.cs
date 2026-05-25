@@ -35,7 +35,7 @@ public class MemorySkill
 
         if (data != null)
             _memory = data;
-}
+    }
 
 
     //first structure : Kategorie
@@ -60,7 +60,7 @@ public class MemorySkill
 
             var key = "item" + (_memory[category].Count + 1);
             _memory[category][key] = value;
-
+            SaveMemory();
             return $"Saved under category '{category}': {value}";
         }
 
@@ -75,9 +75,10 @@ public class MemorySkill
 
             _memory["general"][key] = value;
 
+            SaveMemory();
             return $"Saved key-value: {key} = {value}";
         }
-        SaveMemory();
+        
         return "Invalid format. Use 'category: text' or 'key=value'.";
     }
 
@@ -152,8 +153,10 @@ public string Forget(string input)
             return "No general memory found.";
 
         if (_memory["general"].Remove(key))
+        {
+            SaveMemory();
             return $"Removed key '{key}'.";
-
+        }
         return $"Key '{key}' not found.";
     }
 
@@ -161,10 +164,36 @@ public string Forget(string input)
     if (_memory.ContainsKey("general") && _memory["general"].ContainsKey(input))
     {
         _memory["general"].Remove(input);
+        SaveMemory();
         return $"Removed key '{input}'.";
     }
 
     return "Invalid format.";
 }
+
+
+[KernelFunction]
+public string SearchMemory(string text)
+{
+    var results = new List<string>();
+
+    foreach (var category in _memory)
+    {
+        foreach (var kv in category.Value)
+        {
+            if (kv.Key.Contains(text, StringComparison.OrdinalIgnoreCase) ||
+                kv.Value.Contains(text, StringComparison.OrdinalIgnoreCase))
+            {
+                results.Add($"[{category.Key}] {kv.Key}: {kv.Value}");
+            }
+        }
+    }
+
+    if (results.Count == 0)
+        return $"No memory entries found containing '{text}'.";
+
+    return "Search results:\n" + string.Join("\n", results);
+}
+
 
 }

@@ -148,6 +148,23 @@ while (true)
         continue;
     }
 
+
+    // SEARCH MEMORY
+    if (input.StartsWith("/searchmemory "))
+    {
+        var parts = input.Split(" ", 2);
+        var text = parts[1];
+
+        var result = await kernel.InvokeAsync<string>(
+            "MemorySkill", "SearchMemory",
+            new() { ["text"] = text }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+
     
     if (string.IsNullOrWhiteSpace(input))
         continue;
