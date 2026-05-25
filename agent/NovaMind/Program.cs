@@ -107,12 +107,12 @@ while (true)
         var parts = input.Split(" ", 2);
         var text = parts[1];
 
-        var result = await kernel.InvokeAsync<string>(
+        var resultRemember = await kernel.InvokeAsync<string>(
             "MemorySkill", "Remember",
             new() { ["input"] = text }
         );
 
-        Console.WriteLine(result);
+        Console.WriteLine(resultRemember);
         continue;
     }
 
@@ -123,12 +123,12 @@ while (true)
         var parts = input.Split(" ", 2);
         string? category = parts.Length > 1 ? parts[1] : null;
 
-        var result = await kernel.InvokeAsync<string>(
+        var resultMemory = await kernel.InvokeAsync<string>(
             "MemorySkill", "ShowMemory",
             new() { ["category"] = category }
         );
 
-        Console.WriteLine(result);
+        Console.WriteLine(resultMemory);
         continue;
     }
 
@@ -139,12 +139,12 @@ while (true)
         var parts = input.Split(" ", 2);
         var text = parts[1];
 
-        var result = await kernel.InvokeAsync<string>(
+        var resultForget = await kernel.InvokeAsync<string>(
             "MemorySkill", "Forget",
             new() { ["input"] = text }
         );
 
-        Console.WriteLine(result);
+        Console.WriteLine(resultForget);
         continue;
     }
 
