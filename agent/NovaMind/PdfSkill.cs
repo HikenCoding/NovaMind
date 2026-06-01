@@ -1,21 +1,19 @@
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 
 public class PdfSkill
 {
-    // return pdf as a string
     [KernelFunction]
     public string ReadPdf(string path)
     {
         if (!File.Exists(path))
             return $"File not found: {path}";
 
-        var text = ExtractText(path);
-        return text;
+        return ExtractText(path);
     }
 
-    //searching for the input and return text you given
     [KernelFunction]
     public string SearchPdf(string path, string search)
     {
@@ -35,27 +33,32 @@ public class PdfSkill
         return "Matches:\n" + string.Join("\n", matches);
     }
 
-    //return text -> send it to LLM -> LLM makes a summary
     [KernelFunction]
-    public string SummarizePdf(string path, Kernel kernel)
+    public async Task<string> SummarizePdf(string path, Kernel kernel)
     {
         if (!File.Exists(path))
             return $"File not found: {path}";
 
         var text = ExtractText(path);
 
-        var prompt = $"Summarize the following PDF content:\n\n{text}";
+        var chat = kernel.GetRequiredService<IChatCompletionService>();
+        var history = new ChatHistory();
 
-        // Semantic Kernel v1.20+ returns FunctionResult
-        var response = kernel.InvokePromptAsync(prompt).Result;
+        var lang = LanguageDetector.Detect(text);
 
-        // Extract the actual string
-        var summary = response.GetValue<string>();
+        history.AddSystemMessage(
+            lang == "German"
+            ? "Du bist NovaMind. Fasse den folgenden PDF‑Inhalt klar und präzise auf Deutsch zusammen."
+            : "You are NovaMind. Summarize the following PDF content clearly and concisely in English."
+        );
 
-        return summary ?? "No summary generated.";
+        history.AddUserMessage(text);
+
+        var response = await chat.GetChatMessageContentAsync(history);
+
+        return response.Content ?? "No summary generated.";
     }
 
-    //opens PDF -> read page by page -> returns text as string
     private string ExtractText(string path)
     {
         var result = new System.Text.StringBuilder();

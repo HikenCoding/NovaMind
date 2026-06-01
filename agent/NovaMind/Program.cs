@@ -1,10 +1,13 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.Ollama;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.Extensions.DependencyInjection;
+
 
 var builder = Kernel.CreateBuilder();
 
 // Ollama LLM einbinden
-builder.AddOllamaTextGeneration(
+builder.AddOllamaChatCompletion(
     modelId: "llama3:latest",
     endpoint: new Uri("http://127.0.0.1:11434")
 );
@@ -16,6 +19,7 @@ builder.Plugins.AddFromType<MemorySkill>();
 builder.Plugins.AddFromType<PdfSkill>();
 
 var kernel = builder.Build();
+
 
 Console.WriteLine("NovaMind CLI gestartet. Schreib etwas:");
 
@@ -212,7 +216,6 @@ while (true)
     continue;
     }
 
-
     // EXIT
     if (input.ToLower() == "exit")
         break;
@@ -222,11 +225,26 @@ while (true)
 
     // Automatische Spracherkennung
     var lang = LanguageDetector.Detect(input);
-    kernel.PromptExecutionSettings.Defaults["system"] = LanguageDetector.GetSystemPrompt(lang);
 
-    // Standard LLM Prompt
-    var response = await kernel.InvokePromptAsync(input);
-    result = response.GetValue<string>();
+    // Chat-Service holen
+    var chat = kernel.GetRequiredService<IChatCompletionService>();
+
+    // Chat-History erstellen
+    var history = new ChatHistory();
+
+    // Systemprompt dynamisch setzen
+    history.AddSystemMessage(LanguageDetector.GetSystemPrompt(lang));
+
+    // User-Message hinzufügen
+    history.AddUserMessage(input);
+
+    // LLM aufrufen
+    var response = await chat.GetChatMessageContentAsync(history);
+
+    // Ausgabe
+    result = response.Content;
     Console.WriteLine(result);
+
+
 
 }
