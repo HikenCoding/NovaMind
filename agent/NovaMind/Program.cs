@@ -13,6 +13,7 @@ builder.AddOllamaTextGeneration(
 builder.Plugins.AddFromType<HelpSkill>();
 builder.Plugins.AddFromType<FileSkill>();
 builder.Plugins.AddFromType<MemorySkill>();
+builder.Plugins.AddFromType<PdfSkill>();
 
 var kernel = builder.Build();
 
@@ -166,6 +167,51 @@ while (true)
         Console.WriteLine(result);
         continue;
     }
+
+    // PDF READ
+    if (input.StartsWith("/pdf read "))
+    {
+        var path = input.Replace("/pdf read ", "");
+
+        var result = await kernel.InvokeAsync<string>(
+            "PdfSkill", "ReadPdf",
+            new() { ["path"] = path }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+    // PDF SEARCH
+    if (input.StartsWith("/pdf search "))
+    {
+        var parts = input.Split(" ", 4);
+        var path = parts[2];
+        var text = parts[3];
+
+        var result = await kernel.InvokeAsync<string>(
+            "PdfSkill", "SearchPdf",
+            new() { ["path"] = path, ["search"] = text }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+    //PDF SUMMARY
+    if (input.StartsWith("/pdf summary "))
+    {
+    var path = input.Replace("/pdf summary ", "");
+
+    var result = await kernel.InvokeAsync<string>(
+        "PdfSkill", "SummarizePdf",
+        new() { ["path"] = path, ["kernel"] = kernel }
+    );
+
+    Console.WriteLine(result);
+    continue;
+    }
+
 
     // EXIT
     if (input.ToLower() == "exit")
