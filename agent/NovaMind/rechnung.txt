@@ -1,0 +1,43 @@
+Erkan Mustermann
+Musterstraße 12
+60311 Frankfurt am Main
+
+Rechnung Nr. 2024-001
+Datum: 01.06.2026
+
+Rechnung an:
+Max Mustermann
+Kundenweg 5
+60486 Frankfurt am Main
+
+-----------------------------------------
+Leistungsbeschreibung
+-----------------------------------------
+1x KI-Agenten-Entwicklung (NovaMind)
+Zeitraum: 01.05.2026 – 31.05.2026
+Beschreibung:
+- Implementierung von modularen Skills
+- Dateiverwaltung (Read/Write/Delete)
+- Memory-System
+- CLI-Interface
+- PDF-Analyse
+
+-----------------------------------------
+Kostenübersicht
+-----------------------------------------
+Arbeitszeit: 20 Stunden
+Stundensatz: 50,00 €
+Gesamt netto: 1.000,00 €
+
+Umsatzsteuer (19%): 190,00 €
+-----------------------------------------
+Gesamtbetrag: 1.190,00 €
+-----------------------------------------
+
+Bitte überweisen Sie den Gesamtbetrag innerhalb von 14 Tagen auf folgendes Konto:
+
+Bank: Musterbank
+IBAN: DE12 3456 7890 1234 5678 90
+BIC: MUSTDEFFXXX
+
+Vielen Dank für Ihren Auftrag!
