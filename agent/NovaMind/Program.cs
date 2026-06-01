@@ -220,6 +220,10 @@ while (true)
     if (string.IsNullOrWhiteSpace(input))
         continue;
 
+    // Automatische Spracherkennung
+    var lang = LanguageDetector.Detect(input);
+    kernel.PromptExecutionSettings.Defaults["system"] = LanguageDetector.GetSystemPrompt(lang);
+
     // Standard LLM Prompt
     var response = await kernel.InvokePromptAsync(input);
     result = response.GetValue<string>();
