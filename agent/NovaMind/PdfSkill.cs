@@ -4,6 +4,7 @@ using UglyToad.PdfPig.Content;
 
 public class PdfSkill
 {
+    // return pdf as a string
     [KernelFunction]
     public string ReadPdf(string path)
     {
@@ -14,6 +15,7 @@ public class PdfSkill
         return text;
     }
 
+    //searching for the input and return text you given
     [KernelFunction]
     public string SearchPdf(string path, string search)
     {
@@ -33,6 +35,7 @@ public class PdfSkill
         return "Matches:\n" + string.Join("\n", matches);
     }
 
+    //return text -> send it to LLM -> LLM makes a summary
     [KernelFunction]
     public string SummarizePdf(string path, Kernel kernel)
     {
@@ -48,6 +51,7 @@ public class PdfSkill
         return result;
     }
 
+    //opens PDF -> read page by page -> returns text as string
     private string ExtractText(string path)
     {
         var result = new System.Text.StringBuilder();
