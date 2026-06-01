@@ -173,7 +173,7 @@ while (true)
     {
         var path = input.Replace("/pdf read ", "");
 
-        var result = await kernel.InvokeAsync<string>(
+        result = await kernel.InvokeAsync<string>(
             "PdfSkill", "ReadPdf",
             new() { ["path"] = path }
         );
@@ -189,7 +189,7 @@ while (true)
         var path = parts[2];
         var text = parts[3];
 
-        var result = await kernel.InvokeAsync<string>(
+        result = await kernel.InvokeAsync<string>(
             "PdfSkill", "SearchPdf",
             new() { ["path"] = path, ["search"] = text }
         );
@@ -203,7 +203,7 @@ while (true)
     {
     var path = input.Replace("/pdf summary ", "");
 
-    var result = await kernel.InvokeAsync<string>(
+    result = await kernel.InvokeAsync<string>(
         "PdfSkill", "SummarizePdf",
         new() { ["path"] = path, ["kernel"] = kernel }
     );

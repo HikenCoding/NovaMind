@@ -46,9 +46,13 @@ public class PdfSkill
 
         var prompt = $"Summarize the following PDF content:\n\n{text}";
 
-        var result = kernel.InvokePromptAsync(prompt).Result;
+        // Semantic Kernel v1.20+ returns FunctionResult
+        var response = kernel.InvokePromptAsync(prompt).Result;
 
-        return result;
+        // Extract the actual string
+        var summary = response.GetValue<string>();
+
+        return summary ?? "No summary generated.";
     }
 
     //opens PDF -> read page by page -> returns text as string
