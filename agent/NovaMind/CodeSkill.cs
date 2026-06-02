@@ -25,59 +25,68 @@ public class CodeSkill
     }
 
     [KernelFunction]
-    public async Task<string> ExplainCode(string path, string lang)
+    public async Task<string> ExplainCode(string path)
     {
         var code = ReadFile(path);
         if (code.StartsWith("File not found"))
             return code;
 
-        var systemPrompt = lang == "de"
+        // Sprache automatisch erkennen
+        var lang = LanguageDetector.Detect(code);
+
+        var systemPrompt = lang == "German"
             ? "Du bist ein professioneller Softwareentwickler. Erkläre den folgenden Code klar und verständlich."
             : "You are a professional software engineer. Explain the following code clearly and simply.";
 
-        var chat = new ChatHistory();
-        chat.AddSystemMessage(systemPrompt);
-        chat.AddUserMessage($"Erkläre diesen Code:\n\n{code}");
+        var history = new ChatHistory();
+        history.AddSystemMessage(systemPrompt);
+        history.AddUserMessage($"Erkläre diesen Code:\n\n{code}");
 
-        var result = await _chat.GetChatMessageContentAsync(chat);
+        var result = await _chat.GetChatMessageContentAsync(history);
         return result.Content ?? "";
     }
 
     [KernelFunction]
-    public async Task<string> FindIssues(string path, string lang)
+    public async Task<string> FindIssues(string path)
     {
         var code = ReadFile(path);
         if (code.StartsWith("File not found"))
             return code;
 
-        var systemPrompt = lang == "de"
+        // Sprache automatisch erkennen
+        var lang = LanguageDetector.Detect(code);
+
+        var systemPrompt = lang == "German"
             ? "Du bist ein erfahrener Code-Reviewer. Finde Probleme, Risiken und Anti-Patterns im folgenden Code."
             : "You are an experienced code reviewer. Identify issues, risks, and anti-patterns in the following code.";
 
-        var chat = new ChatHistory();
-        chat.AddSystemMessage(systemPrompt);
-        chat.AddUserMessage($"Analysiere diesen Code:\n\n{code}");
+        var history = new ChatHistory();
+        history.AddSystemMessage(systemPrompt);
+        history.AddUserMessage($"Analysiere diesen Code:\n\n{code}");
 
-        var result = await _chat.GetChatMessageContentAsync(chat);
+        var result = await _chat.GetChatMessageContentAsync(history);
         return result.Content ?? "";
     }
 
     [KernelFunction]
-    public async Task<string> RefactorCode(string path, string lang)
+    public async Task<string> RefactorCode(string path)
     {
         var code = ReadFile(path);
         if (code.StartsWith("File not found"))
             return code;
 
-        var systemPrompt = lang == "de"
+        // Sprache automatisch erkennen
+        var lang = LanguageDetector.Detect(code);
+
+        var systemPrompt = lang == "German"
             ? "Du bist ein Senior-Softwareentwickler. Schreibe eine verbesserte Version des folgenden Codes."
             : "You are a senior software engineer. Write an improved version of the following code.";
 
-        var chat = new ChatHistory();
-        chat.AddSystemMessage(systemPrompt);
-        chat.AddUserMessage($"Refactore diesen Code:\n\n{code}");
+        var history = new ChatHistory();
+        history.AddSystemMessage(systemPrompt);
+        history.AddUserMessage($"Refactore diesen Code:\n\n{code}");
 
-        var result = await _chat.GetChatMessageContentAsync(chat);
+        var result = await _chat.GetChatMessageContentAsync(history);
         return result.Content ?? "";
     }
 }
