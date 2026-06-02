@@ -32,8 +32,6 @@ Console.WriteLine("NovaMind CLI gestartet. Schreib etwas:");
 // Eine gemeinsame Variable für alle Ergebnisse
 string? result = null;
 
-["lang"] = detectedLanguage;
-
 
 while (true)
 {
