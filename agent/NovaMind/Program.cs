@@ -17,6 +17,13 @@ builder.Plugins.AddFromType<HelpSkill>();
 builder.Plugins.AddFromType<FileSkill>();
 builder.Plugins.AddFromType<MemorySkill>();
 builder.Plugins.AddFromType<PdfSkill>();
+builder.Plugins.AddFromType<CodeSkill>();
+
+
+// CodeSkill manuell registrieren (wegen Konstruktor)
+var sp = builder.Services.BuildServiceProvider();
+var codeChatService = sp.GetRequiredService<IChatCompletionService>();
+builder.Plugins.AddFromObject(new CodeSkill(codeChatService));
 
 var kernel = builder.Build();
 
