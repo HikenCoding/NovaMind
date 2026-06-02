@@ -216,6 +216,65 @@ while (true)
     continue;
     }
 
+
+    // CODE READ
+    if (input.StartsWith("/code read "))
+    {
+        var path = input.Replace("/code read ", "").Trim();
+
+        result = await kernel.InvokeAsync<string>(
+            "CodeSkill", "ReadCode",
+            new() { ["path"] = path }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+
+    // CODE EXPLAIN
+    if (input.StartsWith("/code explain "))
+    {
+        var path = input.Replace("/code explain ", "").Trim();
+
+        result = await kernel.InvokeAsync<string>(
+            "CodeSkill", "ExplainCode",
+            new() { ["path"] = path }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+    // CODE ISSUES
+    if (input.StartsWith("/code issues "))
+    {
+        var path = input.Replace("/code issues ", "").Trim();
+
+        result = await kernel.InvokeAsync<string>(
+            "CodeSkill", "FindIssues",
+            new() { ["path"] = path }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+    // CODE REFACTOR
+    if (input.StartsWith("/code refactor "))
+    {
+        var path = input.Replace("/code refactor ", "").Trim();
+
+        result = await kernel.InvokeAsync<string>(
+            "CodeSkill", "RefactorCode",
+            new() { ["path"] = path }
+        );
+
+        Console.WriteLine(result);
+        continue;
+    }
+
+
     // EXIT
     if (input.ToLower() == "exit")
         break;
