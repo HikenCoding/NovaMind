@@ -19,20 +19,17 @@ public class CodeSkill
     }
 
     [KernelFunction]
-    public async Task<string> ReadCode(string path)
+    public string ReadCode(string path)
     {
         return ReadFile(path);
     }
 
     [KernelFunction]
-    public async Task<string> ExplainCode(string path)
+    public async Task<string> ExplainCode(string path, string lang)
     {
         var code = ReadFile(path);
         if (code.StartsWith("File not found"))
             return code;
-
-        // Sprache automatisch erkennen
-        var lang = LanguageDetector.Detect(code);
 
         var systemPrompt = lang == "German"
             ? "Du bist ein professioneller Softwareentwickler. Erkläre den folgenden Code klar und verständlich."
@@ -47,14 +44,11 @@ public class CodeSkill
     }
 
     [KernelFunction]
-    public async Task<string> FindIssues(string path)
+    public async Task<string> FindIssues(string path, string lang)
     {
         var code = ReadFile(path);
         if (code.StartsWith("File not found"))
             return code;
-
-        // Sprache automatisch erkennen
-        var lang = LanguageDetector.Detect(code);
 
         var systemPrompt = lang == "German"
             ? "Du bist ein erfahrener Code-Reviewer. Finde Probleme, Risiken und Anti-Patterns im folgenden Code."
@@ -69,14 +63,11 @@ public class CodeSkill
     }
 
     [KernelFunction]
-    public async Task<string> RefactorCode(string path)
+    public async Task<string> RefactorCode(string path, string lang)
     {
         var code = ReadFile(path);
         if (code.StartsWith("File not found"))
             return code;
-
-        // Sprache automatisch erkennen
-        var lang = LanguageDetector.Detect(code);
 
         var systemPrompt = lang == "German"
             ? "Du bist ein Senior-Softwareentwickler. Schreibe eine verbesserte Version des folgenden Codes."

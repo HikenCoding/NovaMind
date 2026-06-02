@@ -245,9 +245,10 @@ while (true)
         var path = input.Replace("/code explain ", "").Trim();
 
         result = await kernel.InvokeAsync<string>(
-            "CodeSkill", "ExplainCode",
-            new() { ["path"] = path }
-        );
+        "CodeSkill", "ExplainCode",
+        new() { ["path"] = path, ["lang"] = lang }
+    );
+
 
         Console.WriteLine(result);
         continue;
@@ -258,10 +259,11 @@ while (true)
     {
         var path = input.Replace("/code issues ", "").Trim();
 
-        result = await kernel.InvokeAsync<string>(
-            "CodeSkill", "FindIssues",
-            new() { ["path"] = path }
-        );
+            result = await kernel.InvokeAsync<string>(
+        "CodeSkill", "FindIssues",
+        new() { ["path"] = path, ["lang"] = lang }
+    );
+
 
         Console.WriteLine(result);
         continue;
@@ -272,10 +274,11 @@ while (true)
     {
         var path = input.Replace("/code refactor ", "").Trim();
 
-        result = await kernel.InvokeAsync<string>(
-            "CodeSkill", "RefactorCode",
-            new() { ["path"] = path }
-        );
+            result = await kernel.InvokeAsync<string>(
+        "CodeSkill", "RefactorCode",
+        new() { ["path"] = path, ["lang"] = lang }
+    );
+
 
         Console.WriteLine(result);
         continue;
