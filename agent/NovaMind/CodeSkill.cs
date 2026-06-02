@@ -4,12 +4,10 @@ using Microsoft.SemanticKernel.ChatCompletion;
 public class CodeSkill
 {
     private readonly IChatCompletionService _chat;
-    private readonly LanguageDetector _lang;
 
-    public CodeSkill(IChatCompletionService chat, LanguageDetector lang)
+    public CodeSkill(IChatCompletionService chat)
     {
         _chat = chat;
-        _lang = lang;
     }
 
     private string ReadFile(string path)
@@ -33,17 +31,18 @@ public class CodeSkill
         if (code.StartsWith("File not found"))
             return code;
 
-        var lang = _lang.DetectLanguage(code);
-        var systemPrompt = lang == "de"
-            ? "Du bist ein professioneller Softwareentwickler. Erkläre Code klar und verständlich."
-            : "You are a professional software engineer. Explain code clearly and simply.";
+        var lang = LanguageDetector.Detect(code);
+
+        var systemPrompt = lang == "German"
+            ? "Du bist ein professioneller Softwareentwickler. Erkläre den folgenden Code klar und verständlich."
+            : "You are a professional software engineer. Explain the following code clearly and simply.";
 
         var chat = new ChatHistory();
         chat.AddSystemMessage(systemPrompt);
         chat.AddUserMessage($"Erkläre diesen Code:\n\n{code}");
 
         var result = await _chat.GetChatMessageContentAsync(chat);
-        return result.ToString();
+        return result.Content ?? "";
     }
 
     [KernelFunction]
@@ -53,17 +52,18 @@ public class CodeSkill
         if (code.StartsWith("File not found"))
             return code;
 
-        var lang = _lang.DetectLanguage(code);
-        var systemPrompt = lang == "de"
-            ? "Du bist ein erfahrener Code-Reviewer. Finde Probleme, Risiken und Anti-Patterns."
-            : "You are an experienced code reviewer. Find issues, risks, and anti-patterns.";
+        var lang = LanguageDetector.Detect(code);
+
+        var systemPrompt = lang == "German"
+            ? "Du bist ein erfahrener Code-Reviewer. Finde Probleme, Risiken und Anti-Patterns im folgenden Code."
+            : "You are an experienced code reviewer. Identify issues, risks, and anti-patterns in the following code.";
 
         var chat = new ChatHistory();
         chat.AddSystemMessage(systemPrompt);
-        chat.AddUserMessage($"Analysiere diesen Code auf Probleme:\n\n{code}");
+        chat.AddUserMessage($"Analysiere diesen Code:\n\n{code}");
 
         var result = await _chat.GetChatMessageContentAsync(chat);
-        return result.ToString();
+        return result.Content ?? "";
     }
 
     [KernelFunction]
@@ -73,16 +73,17 @@ public class CodeSkill
         if (code.StartsWith("File not found"))
             return code;
 
-        var lang = _lang.DetectLanguage(code);
-        var systemPrompt = lang == "de"
-            ? "Du bist ein Senior-Softwareentwickler. Schreibe eine verbesserte Version des Codes."
-            : "You are a senior software engineer. Write an improved version of the code.";
+        var lang = LanguageDetector.Detect(code);
+
+        var systemPrompt = lang == "German"
+            ? "Du bist ein Senior-Softwareentwickler. Schreibe eine verbesserte Version des folgenden Codes."
+            : "You are a senior software engineer. Write an improved version of the following code.";
 
         var chat = new ChatHistory();
         chat.AddSystemMessage(systemPrompt);
         chat.AddUserMessage($"Refactore diesen Code:\n\n{code}");
 
         var result = await _chat.GetChatMessageContentAsync(chat);
-        return result.ToString();
+        return result.Content ?? "";
     }
 }

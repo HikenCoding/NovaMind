@@ -303,7 +303,4 @@ while (true)
     // Ausgabe
     result = response.Content;
     Console.WriteLine(result);
-
-
-
 }
