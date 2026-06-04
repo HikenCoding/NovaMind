@@ -284,6 +284,38 @@ while (true)
         continue;
     }
 
+    
+
+    //agent 
+        if (input.StartsWith("/agent "))
+    {
+        var request = input.Replace("/agent ", "").Trim();
+
+        var plan = CreateSimplePlan(request);
+
+        if (plan.Steps.Count == 0)
+        {
+            Console.WriteLine("Kein Plan gefunden für diese Anfrage.");
+            continue;
+        }
+
+        foreach (var step in plan.Steps)
+        {
+            Console.WriteLine($"→ Schritt: {step.Description}");
+
+            string? result = null;
+
+            result = await kernel.InvokeAsync<string>(
+                step.SkillName,
+                step.FunctionName,
+                step.Arguments
+            );
+
+            Console.WriteLine(result);
+        }
+
+        continue;
+    }
 
     // EXIT
     if (input.ToLower() == "exit")
