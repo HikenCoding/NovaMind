@@ -3,7 +3,6 @@ using Microsoft.SemanticKernel.Connectors.Ollama;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.DependencyInjection;
 
-
 var builder = Kernel.CreateBuilder();
 
 // Ollama LLM einbinden
@@ -18,7 +17,6 @@ builder.Plugins.AddFromType<FileSkill>();
 builder.Plugins.AddFromType<MemorySkill>();
 builder.Plugins.AddFromType<PdfSkill>();
 
-
 // CodeSkill manuell registrieren (wegen Konstruktor)
 var sp = builder.Services.BuildServiceProvider();
 var codeChatService = sp.GetRequiredService<IChatCompletionService>();
@@ -26,12 +24,11 @@ builder.Plugins.AddFromObject(new CodeSkill(codeChatService));
 
 var kernel = builder.Build();
 
-
 Console.WriteLine("NovaMind CLI gestartet. Schreib etwas:");
 
-// Eine gemeinsame Variable für alle Ergebnisse
+// Gemeinsame Variablen außerhalb der Schleife deklarieren
 string? result = null;
-
+string lang = "de"; // Standard auf DE gesetzt
 
 while (true)
 {
@@ -40,6 +37,9 @@ while (true)
 
     if (input is null)
         continue;
+
+    // Sprache bei jedem Input erkennen
+    lang = LanguageDetector.Detect(input);
 
     // HELP
     if (input == "/help")
@@ -212,17 +212,16 @@ while (true)
     //PDF SUMMARY
     if (input.StartsWith("/pdf summary "))
     {
-    var path = input.Replace("/pdf summary ", "");
+        var path = input.Replace("/pdf summary ", "");
 
-    result = await kernel.InvokeAsync<string>(
-        "PdfSkill", "SummarizePdf",
-        new() { ["path"] = path, ["kernel"] = kernel }
-    );
+        result = await kernel.InvokeAsync<string>(
+            "PdfSkill", "SummarizePdf",
+            new() { ["path"] = path, ["kernel"] = kernel }
+        );
 
-    Console.WriteLine(result);
-    continue;
+        Console.WriteLine(result);
+        continue;
     }
-
 
     // CODE READ
     if (input.StartsWith("/code read "))
@@ -238,17 +237,15 @@ while (true)
         continue;
     }
 
-
     // CODE EXPLAIN
     if (input.StartsWith("/code explain "))
     {
         var path = input.Replace("/code explain ", "").Trim();
 
         result = await kernel.InvokeAsync<string>(
-        "CodeSkill", "ExplainCode",
-        new() { ["path"] = path, ["lang"] = lang }
-    );
-
+            "CodeSkill", "ExplainCode",
+            new() { ["path"] = path, ["lang"] = lang }
+        );
 
         Console.WriteLine(result);
         continue;
@@ -259,11 +256,10 @@ while (true)
     {
         var path = input.Replace("/code issues ", "").Trim();
 
-            result = await kernel.InvokeAsync<string>(
-        "CodeSkill", "FindIssues",
-        new() { ["path"] = path, ["lang"] = lang }
-    );
-
+        result = await kernel.InvokeAsync<string>(
+            "CodeSkill", "FindIssues",
+            new() { ["path"] = path, ["lang"] = lang }
+        );
 
         Console.WriteLine(result);
         continue;
@@ -274,24 +270,20 @@ while (true)
     {
         var path = input.Replace("/code refactor ", "").Trim();
 
-            result = await kernel.InvokeAsync<string>(
-        "CodeSkill", "RefactorCode",
-        new() { ["path"] = path, ["lang"] = lang }
-    );
-
+        result = await kernel.InvokeAsync<string>(
+            "CodeSkill", "RefactorCode",
+            new() { ["path"] = path, ["lang"] = lang }
+        );
 
         Console.WriteLine(result);
         continue;
     }
 
-    
-
-    //agent 
-        if (input.StartsWith("/agent "))
+    // agent 
+    if (input.StartsWith("/agent "))
     {
         var request = input.Replace("/agent ", "").Trim();
-
-        var plan = CreateSimplePlan(request);
+        var plan = AgentPlanner.CreateSimplePlan(request);
 
         if (plan.Steps.Count == 0)
         {
@@ -303,13 +295,19 @@ while (true)
         {
             Console.WriteLine($"→ Schritt: {step.Description}");
 
-            string? result = null;
+            // Umwandlung des Dictionarys in KernelArguments
+            var agentArgs = new KernelArguments();
+            if (step.Arguments != null)
+            {
+                foreach (var arg in step.Arguments)
+                {
+                    agentArgs[arg.Key] = arg.Value;
+                }
+            }
 
-            result = await kernel.InvokeAsync<string>(
-                step.SkillName,
-                step.FunctionName,
-                step.Arguments
-            );
+            var function = kernel.Plugins[step.SkillName][step.FunctionName];
+            var functionResult = await kernel.InvokeAsync(function, agentArgs);
+            result = functionResult.ToString();
 
             Console.WriteLine(result);
         }
@@ -323,9 +321,6 @@ while (true)
 
     if (string.IsNullOrWhiteSpace(input))
         continue;
-
-    // Automatische Spracherkennung
-    var lang = LanguageDetector.Detect(input);
 
     // Chat-Service holen
     var chat = kernel.GetRequiredService<IChatCompletionService>();
