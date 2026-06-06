@@ -54,6 +54,19 @@ public static class AgentPlanner
             }
         });
 
+
+        plan.Steps.Add(new AgentStep
+        {
+        Description = "Reflektiere das Gesamtergebnis",
+        SkillName = "ReflectSkill",
+        FunctionName = "Reflect",
+            Arguments = new()
+            {
+            ["input"] = "" // wird später gefüllt
+            }
+        });
+
+
         return plan;
     }
             return plan;

@@ -16,6 +16,8 @@ builder.Plugins.AddFromType<HelpSkill>();
 builder.Plugins.AddFromType<FileSkill>();
 builder.Plugins.AddFromType<MemorySkill>();
 builder.Plugins.AddFromType<PdfSkill>();
+builder.Plugins.AddFromType<ReflectSkill>();
+
 
 // CodeSkill manuell registrieren (wegen Konstruktor)
 var sp = builder.Services.BuildServiceProvider();
@@ -280,40 +282,52 @@ while (true)
     }
 
     // agent 
-    if (input.StartsWith("/agent "))
+if (input.StartsWith("/agent "))
+{
+    string combinedOutput = "";
+    var request = input.Replace("/agent ", "").Trim();
+
+    var plan = AgentPlanner.CreateSimplePlan(request, lang);
+
+    if (plan.Steps.Count == 0)
     {
-        var request = input.Replace("/agent ", "").Trim();
-        var plan = AgentPlanner.CreateSimplePlan(request, lang);
-
-        if (plan.Steps.Count == 0)
-        {
-            Console.WriteLine("Kein Plan gefunden für diese Anfrage.");
-            continue;
-        }
-
-        foreach (var step in plan.Steps)
-        {
-            Console.WriteLine($"→ Schritt: {step.Description}");
-
-            // Umwandlung des Dictionarys in KernelArguments
-            var agentArgs = new KernelArguments();
-            if (step.Arguments != null)
-            {
-                foreach (var arg in step.Arguments)
-                {
-                    agentArgs[arg.Key] = arg.Value;
-                }
-            }
-
-            var function = kernel.Plugins[step.SkillName][step.FunctionName];
-            var functionResult = await kernel.InvokeAsync(function, agentArgs);
-            result = functionResult.ToString();
-
-            Console.WriteLine(result);
-        }
-
+        Console.WriteLine("Kein Plan gefunden für diese Anfrage.");
         continue;
     }
+
+    foreach (var step in plan.Steps)
+    {
+        Console.WriteLine($"→ Schritt: {step.Description}");
+
+        // Reflect-Step bekommt das gesammelte Ergebnis
+        if (step.FunctionName == "Reflect")
+        {
+            step.Arguments["input"] = combinedOutput;
+        }
+
+        // Dictionary → KernelArguments
+        var agentArgs = new KernelArguments();
+        foreach (var arg in step.Arguments)
+        {
+            agentArgs[arg.Key] = arg.Value;
+        }
+
+        // Skill-Funktion holen
+        var function = kernel.Plugins[step.SkillName][step.FunctionName];
+
+        // Ausführen
+        result = await kernel.InvokeAsync<string>(function, agentArgs);
+
+        // Ausgabe
+        Console.WriteLine(result);
+
+        // Ergebnis sammeln
+        combinedOutput += result + "\n\n";
+    }
+
+    continue;
+}
+
 
     // EXIT
     if (input.ToLower() == "exit")
