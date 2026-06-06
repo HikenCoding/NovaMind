@@ -17,7 +17,7 @@ public class AgentPlan
 
 public static class AgentPlanner
 {
-    public static AgentPlan CreateSimplePlan(string input)
+    public static AgentPlan CreateSimplePlan(string input, string lang)
     {
         var plan = new AgentPlan { OriginalRequest = input };
 
@@ -36,7 +36,8 @@ public static class AgentPlanner
                 Arguments = new()
                 {
                     ["path"] = path,
-                    ["lang"] = "de" // später dynamisch
+                    ["lang"] = lang
+
                 }
             });
 

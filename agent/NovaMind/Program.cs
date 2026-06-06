@@ -283,7 +283,7 @@ while (true)
     if (input.StartsWith("/agent "))
     {
         var request = input.Replace("/agent ", "").Trim();
-        var plan = AgentPlanner.CreateSimplePlan(request);
+        var plan = AgentPlanner.CreateSimplePlan(request, lang);
 
         if (plan.Steps.Count == 0)
         {
