@@ -21,29 +21,41 @@ public static class AgentPlanner
     {
         var plan = new AgentPlan { OriginalRequest = input };
 
-        // Code erklären
-        if (input.Contains("code erklären", StringComparison.OrdinalIgnoreCase) ||
-            input.Contains("code explain", StringComparison.OrdinalIgnoreCase))
+       // Code analysieren (Erklärung + Issues)
+    if (input.Contains("analysiere", StringComparison.OrdinalIgnoreCase) ||
+        input.Contains("analyse", StringComparison.OrdinalIgnoreCase))
+    {
+        var parts = input.Split(" ", StringSplitOptions.RemoveEmptyEntries);
+        string path = parts[^1];
+
+        // Schritt 1: Code erklären
+        plan.Steps.Add(new AgentStep
         {
-            var parts = input.Split(" ", StringSplitOptions.RemoveEmptyEntries);
-            string path = parts[^1]; // letztes Wort = Dateiname
-
-            plan.Steps.Add(new AgentStep
+            Description = $"Erkläre den Code in {path}",
+            SkillName = "CodeSkill",
+            FunctionName = "ExplainCode",
+            Arguments = new()
             {
-                Description = $"Erkläre den Code in {path}",
-                SkillName = "CodeSkill",
-                FunctionName = "ExplainCode",
-                Arguments = new()
-                {
-                    ["path"] = path,
-                    ["lang"] = lang
+                ["path"] = path,
+                ["lang"] = "de"
+            }
+        });
 
-                }
-            });
-
-            return plan;
-        }
+        // Schritt 2: Probleme finden
+        plan.Steps.Add(new AgentStep
+        {
+            Description = $"Finde Probleme im Code {path}",
+            SkillName = "CodeSkill",
+            FunctionName = "FindIssues",
+            Arguments = new()
+            {
+                ["path"] = path,
+                ["lang"] = "de"
+            }
+        });
 
         return plan;
     }
-}
+            return plan;
+        }
+    }
