@@ -26,6 +26,9 @@ builder.Plugins.AddFromObject(new CodeSkill(codeChatService));
 
 var kernel = builder.Build();
 
+// Chat-Service holen
+var chat = kernel.GetRequiredService<IChatCompletionService>();
+
 Console.WriteLine("NovaMind CLI gestartet. Schreib etwas:");
 
 // Gemeinsame Variablen außerhalb der Schleife deklarieren
@@ -337,8 +340,6 @@ if (input.StartsWith("/agent "))
     if (string.IsNullOrWhiteSpace(input))
         continue;
 
-    // Chat-Service holen
-    var chat = kernel.GetRequiredService<IChatCompletionService>();
 
     // Chat-History erstellen
     var history = new ChatHistory();

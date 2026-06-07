@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.SemanticKernel.ChatCompletion;
+using System.Text.Json;
 
 
 public class AgentStep
