@@ -287,12 +287,13 @@ if (input.StartsWith("/agent "))
     string combinedOutput = "";
     var request = input.Replace("/agent ", "").Trim();
 
-    var plan = AgentPlanner.CreateSimplePlan(request, lang);
+    // var plan = AgentPlanner.CreateSimplePlan(request, lang);
+    var plan = await AgentPlanner.CreateLLMPlanAsync(request, lang, chat);
+
 
     if (plan.Steps.Count == 0)
     {
-        Console.WriteLine("Kein Plan gefunden für diese Anfrage.");
-        continue;
+         plan = AgentPlanner.CreateSimplePlan(request, lang);
     }
 
     foreach (var step in plan.Steps)
