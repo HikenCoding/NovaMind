@@ -16,13 +16,14 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x # Falls du eine ältere/neuere Version nutzt, hier anpassen!
+        dotnet-version: 8.0.x
 
+    # Hier haben wir jetzt den Pfad angepasst: "agent/NovaMind/"
     - name: Restore dependencies
-      run: dotnet restore NovaMind/
+      run: dotnet restore agent/NovaMind/
 
     - name: Build
-      run: dotnet build NovaMind/ --no-restore --configuration Release
+      run: dotnet build agent/NovaMind/ --no-restore --configuration Release
 
     - name: Test
-      run: dotnet test NovaMind/ --no-build --verbosity normal
+      run: dotnet test agent/NovaMind/ --no-build --verbosity normal
