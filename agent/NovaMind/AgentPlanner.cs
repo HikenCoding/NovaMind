@@ -195,11 +195,6 @@ Gib NUR das JSON zurück.";
                     agentStep.Arguments[arg.Name] = arg.Value.GetString() ?? "";
                 }
             }
-            else
-            {
-                agentStep.Arguments = new Dictionary<string, string>();
-            }
-
                 plan.Steps.Add(agentStep);
             }
         }
