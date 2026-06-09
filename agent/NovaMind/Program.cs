@@ -290,18 +290,23 @@ if (input.StartsWith("/agent "))
     string combinedOutput = "";
     var request = input.Replace("/agent ", "").Trim();
 
-    // var plan = AgentPlanner.CreateSimplePlan(request, lang);
     var plan = await AgentPlanner.CreateLLMPlanAsync(request, lang, chat);
-
 
     if (plan.Steps.Count == 0)
     {
-         plan = AgentPlanner.CreateSimplePlan(request, lang);
+        plan = AgentPlanner.CreateSimplePlan(request, lang);
     }
 
     foreach (var step in plan.Steps)
     {
         Console.WriteLine($"→ Schritt: {step.Description}");
+
+        // NEU: Wenn der Skill etwas im Memory speichern soll, geben wir ihm das bisherige Ergebnis im richtigen Format mit!
+        if (step.SkillName == "MemorySkill" && step.FunctionName == "Remember")
+        {
+            // Wir formatieren es so, wie dein Skill es verlangt (z.B. 'Kategorie: Text')
+            step.Arguments["input"] = $"TODOs: {combinedOutput}";
+        }
 
         // Reflect-Step bekommt das gesammelte Ergebnis
         if (step.FunctionName == "Reflect")
@@ -325,8 +330,11 @@ if (input.StartsWith("/agent "))
         // Ausgabe
         Console.WriteLine(result);
 
-        // Ergebnis sammeln
-        combinedOutput += result + "\n\n";
+        // Ergebnis sammeln (damit der nächste Schritt darauf zugreifen kann)
+        if (!string.IsNullOrWhiteSpace(result))
+        {
+            combinedOutput += result + "\n\n";
+        }
     }
 
     continue;

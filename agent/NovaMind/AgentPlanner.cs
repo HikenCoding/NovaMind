@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Microsoft.SemanticKernel.ChatCompletion;
 using System.Text.Json;
 
-
 public class AgentStep
 {
     public string Description { get; set; } = "";
@@ -20,6 +19,14 @@ public class AgentPlan
 
 public static class AgentPlanner
 {
+        private static readonly Dictionary<string, List<string>> ValidSkills = new()
+    {
+        ["CodeSkill"] = new() { "ExplainCode", "FindIssues", "RefactorCode" },
+        ["PdfSkill"] = new() { "ReadPdf", "SearchPdf", "SummarizePdf" },
+        ["MemorySkill"] = new() { "Remember", "Forget", "Search" },
+        ["FileSkill"] = new() { "ReadFile", "WriteFile", "ListFiles" }
+    };
+
     public static AgentPlan CreateSimplePlan(string input, string lang)
     {
         var plan = new AgentPlan { OriginalRequest = input };
@@ -80,69 +87,97 @@ public static class AgentPlanner
         string lang,
         IChatCompletionService chat)
     {
-        var systemPrompt = @"
-Du bist ein KI-Agenten-Planer.
+var systemPrompt = @"
+Du bist ein KI-Agenten-Planer. Deine Aufgabe ist es, Benutzeranfragen in eine logische Sequenz von Schritten (einen Plan) zu übersetzen.
 
 HARTE REGELN:
 - Antworte mit REINEM JSON.
 - KEIN Text vor oder nach dem JSON.
-- KEIN Markdown.
-- KEINE Erklärungen.
-- KEINE Kommentare.
-- KEINE Backticks.
-- KEINE Einleitung wie 'Here is the plan'.
+- KEIN Markdown (KEINE ```json oder ``` Backticks).
+- KEINE Erklärungen, KEINE Kommentare, KEINE Einleitung.
 
-Das JSON MUSS GENAU SO aussehen:
-
+Das JSON MUSS GENAU SO aufgebaut sein:
 {
   ""steps"": [
     {
-      ""description"": ""kurze Beschreibung"",
+      ""description"": ""Kurze Beschreibung des Schritts auf Deutsch"",
       ""skill"": ""SkillName"",
       ""function"": ""FunctionName"",
       ""arguments"": {
-        ""path"": ""Dateiname.pdf""
+        ""key"": ""value""
       }
     }
   ]
 }
 
-ALLE Felder sind Pflicht:
-- description (string)
-- skill (string)
-- function (string)
-- arguments (object)
+WICHTIGE VERHALTENSREGELN:
+1. Wenn eine Anfrage MEHRERE Aktionen erfordert, erstelle MEHRERE Schritte im Array. (Beispiel: ""Lese Datei.cs und merke dir den Inhalt"" -> Schritt 1: Datei lesen, Schritt 2: Inhalt im Memory speichern).
+2. Nutze den CodeSkill NUR, wenn explizit nach Analyse, Refactoring oder Erklärung von Code gefragt wird. Wenn der User nur Daten aus einer .cs-Datei lesen will, nutze FileSkill oder CodeSkill.ReadCode.
+3. Wenn du keine Argumente für eine Funktion hast, setze: ""arguments"": {}
 
-Wenn der User eine Datei erwähnt (*.pdf, *.cs):
-- extrahiere den Dateinamen
-- setze ihn in arguments.path
-
-Wenn du keine Argumente kennst:
-""arguments"": {}
-
-Verfügbare Skills:
+VERFÜGBARE SKILLS UND DEREN PARAMETER:
 
 PdfSkill:
-- ReadPdf
-- SearchPdf
-- SummarizePdf
+- ReadPdf -> Liest Text aus einer PDF. (Erfordert Argument: ""path"")
+- SearchPdf -> Sucht nach einem Begriff in einer PDF. (Erfordert zwingend BEIDE Argumente: ""path"" UND ""search"")
+- SummarizePdf -> Erstellt eine Zusammenfassung einer PDF. (Erfordert Argument: ""path"")
 
 CodeSkill:
-- ExplainCode
-- FindIssues
-- RefactorCode
+- ReadCode -> Liest den Quellcode einer Datei ein. (Erfordert Argument: ""path"")
+- ExplainCode -> Erklärt Quellcode. (NUR nutzen bei expliziter Frage nach Erklärung! Erfordert Argument: ""path"")
+- FindIssues -> Sucht nach Bugs oder Anti-Patterns im Code. (NUR nutzen bei expliziter Frage nach Fehlersuche! Erfordert Argument: ""path"")
+- RefactorCode -> Schlägt Code-Verbesserungen vor. (NUR nutzen bei expliziter Frage nach Refactoring! Erfordert Argument: ""path"")
 
 MemorySkill:
-- Remember
-- Forget
-- Search
+- Remember -> Speichert Informationen dauerhaft im Gedächtnis des Agenten. (WICHTIG: Erfordert zwingend das Argument ""input"" mit dem zu speichernden Text!)
+- Forget -> Löscht Informationen aus dem Gedächtnis. (Erfordert Argument: ""input"")
+- Search -> Sucht in gespeicherten Erinnerungen. (Erfordert Argument: ""text"")
 
 FileSkill:
-- ReadFile
-- WriteFile
-- ListFiles
+- ReadFile -> Liest eine normale Textdatei. (Erfordert Argument: ""path"")
+- WriteFile -> Schreibt eine Datei. (Erfordert Argumente: ""path"" und ""content"")
+- ListFiles -> Listet Dateien in einem Ordner auf. (Erfordert Argument: ""path"")
 
-Gib NUR das JSON zurück.";
+BEISPIEL-PLÄNE:
+
+Anfrage: ""speichere die TODOs aus Program.cs im Memory""
+{
+  ""steps"": [
+    {
+      ""description"": ""Lese den Quellcode aus Program.cs"",
+      ""skill"": ""CodeSkill"",
+      ""function"": ""ReadCode"",
+      ""arguments"": {
+        ""path"": ""Program.cs""
+      }
+    },
+    {
+      ""description"": ""Extrahiere TODOs und speichere sie im Gedächtnis"",
+      ""skill"": ""MemorySkill"",
+      ""function"": ""Remember"",
+      ""arguments"": {
+        ""input"": ""TODOs aus Program.cs extrahieren""
+      }
+    }
+  ]
+}
+
+Anfrage: ""Suche nach Fehlern in der datei.pdf""
+{
+  ""steps"": [
+    {
+      ""description"": ""Suche nach Fehlern in der PDF-Datei"",
+      ""skill"": ""PdfSkill"",
+      ""function"": ""SearchPdf"",
+      ""arguments"": {
+        ""path"": ""datei.pdf"",
+        ""search"": ""Fehler""
+      }
+    }
+  ]
+}
+
+Gib NUR das fertige JSON-Objekt zurück. ";
 
         var chatHistory = new ChatHistory();
         chatHistory.AddSystemMessage(systemPrompt);
@@ -185,7 +220,20 @@ Gib NUR das JSON zurück.";
                     }
                 }
 
-
+                // Auto-Fix für PdfSkill.SearchPdf: Wenn 'search' fehlt, aber die Funktion es verlangt
+                if (agentStep.FunctionName == "SearchPdf" && !agentStep.Arguments.ContainsKey("search"))
+                {
+                    // Falls das Wort "todo" im Input vorkommt, nimm das, sonst ein Standardwort oder den gesamten Input ohne den Dateinamen
+                    if (input.Contains("todo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        agentStep.Arguments["search"] = "TODO";
+                    }
+                    else
+                    {
+                        agentStep.Arguments["search"] = "Anfrage"; // Fallback, damit der Kernel nicht abstürzt
+                    }
+                    Console.WriteLine($"→ Auto-Fix: Fehlenden Suchbegriff ergänzt: '{agentStep.Arguments["search"]}'");
+                }
 
                 // arguments optional
             if (step.TryGetProperty("arguments", out var argsElement2))
@@ -195,6 +243,36 @@ Gib NUR das JSON zurück.";
                     agentStep.Arguments[arg.Name] = arg.Value.GetString() ?? "";
                 }
             }
+            else
+            {
+                agentStep.Arguments = new Dictionary<string, string>();
+            }
+
+            // Skill/Funktion validieren
+            if (!ValidSkills.ContainsKey(agentStep.SkillName) ||
+                !ValidSkills[agentStep.SkillName].Contains(agentStep.FunctionName))
+            {
+                Console.WriteLine($"⚠️ Ungültiger Step erkannt: {agentStep.SkillName}.{agentStep.FunctionName}");
+
+                // Auto-Fix: richtige Funktion suchen
+                foreach (var skill in ValidSkills)
+                {
+                    if (skill.Value.Contains(agentStep.FunctionName))
+                    {
+                        Console.WriteLine($"→ Auto-Fix: Setze Skill auf {skill.Key}");
+                        agentStep.SkillName = skill.Key;
+                        break;
+                    }
+                }
+            }
+
+            // Auto-Fix: Wenn lang fehlt → automatisch setzen
+            if (!agentStep.Arguments.ContainsKey("lang"))
+            {
+                agentStep.Arguments["lang"] = lang;
+            }
+
+
                 plan.Steps.Add(agentStep);
             }
         }
@@ -247,10 +325,37 @@ private static string SanitizeJson(string raw)
     if (end < 0 || end <= start)
         return "{}";
 
-    // Schneide alles davor und danach ab
-    string json = raw.Substring(start, end - start + 1);
+    // Schneide den JSON-Teil heraus
+    string json = raw.Substring(start, end - start + 1).Trim();
 
-    return json.Trim();
+    // --- AUTO-REPARATUR FÜR UNVOLLSTÄNDIGES JSON ---
+    // Zähle, ob alle geöffneten Klammern auch geschlossen werden
+    int openBraces = 0;
+    int openBrackets = 0;
+
+    foreach (char c in json)
+    {
+        if (c == '{') openBraces++;
+        if (c == '}') openBraces--;
+        if (c == '[') openBrackets++;
+        if (c == ']') openBrackets--;
+    }
+
+    // Wenn eckige Klammern offen sind (z.B. bei "steps": [ )
+    while (openBrackets > 0)
+    {
+        json += "]";
+        openBrackets--;
+    }
+
+    // Wenn geschweifte Klammern offen sind
+    while (openBraces > 0)
+    {
+        json += "}";
+        openBraces--;
+    }
+
+    return json;
 }
 
 
