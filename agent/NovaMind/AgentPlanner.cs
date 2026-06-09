@@ -150,6 +150,7 @@ Gib NUR das JSON zurück.";
 
         var response = await chat.GetChatMessageContentAsync(chatHistory);
         var json = response.Content ?? "{}";
+        json = SanitizeJson(json);
 
         AgentPlan plan = new AgentPlan { OriginalRequest = input };
 
