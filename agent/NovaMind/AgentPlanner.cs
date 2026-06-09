@@ -236,5 +236,27 @@ private static string? ExtractFileNameFromInput(string input)
     return null;
 }
 
+private static string SanitizeJson(string raw)
+{
+    if (string.IsNullOrWhiteSpace(raw))
+        return "{}";
+
+    // Finde erstes '{'
+    int start = raw.IndexOf('{');
+    if (start < 0)
+        return "{}";
+
+    // Finde letztes '}'
+    int end = raw.LastIndexOf('}');
+    if (end < 0 || end <= start)
+        return "{}";
+
+    // Schneide alles davor und danach ab
+    string json = raw.Substring(start, end - start + 1);
+
+    return json.Trim();
+}
+
+
 
     }
