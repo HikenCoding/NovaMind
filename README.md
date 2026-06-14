@@ -76,16 +76,8 @@ Er übernimmt:
 ## 📅 LLM-Planung
 Er erstellt aus natürlicher Sprache einen JSON-Plan:
 
-{
-  "steps": [
-{
-      "description": "PDF zusammenfassen",
-      "skill": "PdfSkill",
-      "function": "SummarizePdf",
-      "arguments": { "path": "rechnung.pdf" }
-    }
-  ]
-}
+<img width="397" height="210" alt="image" src="https://github.com/user-attachments/assets/9bd574ec-2e7c-4721-9f7f-26a90b84ea42" />
+
 
 # JSON-Sanitizer
 Entfernt Text vor "{" und nach "}".
