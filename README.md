@@ -1,159 +1,207 @@
-# 🧠 NovaMind - Local AI-Agent (C# + Semantic Kernel + Ollama)
+# 🧠 NovaMind - Loakler KI-Agent CLI (C# + Semantic Kernel + Ollama)
 
-Its a fully local AI-Agent running inside an isolated Ubuntu (WSL2) environment. So you don't have to worry about deleting anything in your main OS.
-It uses Ollama as the local model runtime and Semantic Kernel as the orchestration layer for prompts, agent logic and future tool integrations. This project is part of a personal portfolio to demonstrate modern AI-agent development using open-source technologies, so everyone can do it without spending money for services. The only maybe neccessary product you need is a device like (notebook, or computer) with solid specification because of RAM usage with Ollama for the Modells.
+NovaMind ist ein modularer, erweiterbarer KI‑Agent, der Dateien liest, Code analysiert, PDFs zusammenfasst, Memory speichert, Pläne erstellt und mehr.
+Das Projekt basiert auf Semantic Kernel, Ollama und einem selbst entwickelten LLM‑Planner, der natürliche Sprache in ausführbare Schritte übersetzt.
 
-
-# ✅ Current Features
-1. CLI‑Based AI Agent
-Fully interactive command‑line interface
-
-Command parsing with fallback to LLM responses
-Modular architecture using Semantic Kernel plugins
-
-2. FileSkill (File System Tools)
-readfile <path> — Reads and returns file content
-
-writefile <path> <text> — Creates or overwrites files
-
-ls [path] — Lists files and directories
-
-deletefile <path> — Deletes a file
-
-3. MemorySkill (Agent Memory System)
-remember <text> — Stores a memory entry
-memory — Displays all stored memory entries
-
-forget <text> — Removes a specific entry
-
-forget * — Clears all memory
-
-4. HelpSkill
-help — Shows all available commands
-
-5. Local LLM Integration
-Uses Ollama as the local model backend
-
-Uses Semantic Kernel for tool execution and orchestration
-
-# 🚀 Planned Features
-1. Memory System 2.0
-Key‑value memory
-
-Categorized memory
-
-Persistent storage (JSON or local DB)
-
-2. PDF Analysis
-Read PDF files
-
-Extract text
-
-Summarize content
-
-Search inside PDFs
-
-3. Code Analysis
-Syntax analysis
-
-Error detection
-
-Code explanation
-
-Refactoring suggestions
-
-4. Agent Loop (Planning + Tool Execution)
-LLM generates a plan
-
-Executes tools step‑by‑step
-
-Evaluates results
-
-Iterates until the task is complete
-
-5. Optional Web UI
-Chat interface
-
-File upload
-
-Tool buttons
-
-Real‑time logs
- 
-
-# 🏗️ Architecture Overview
-Ubuntu (WSL2)
-Isolated development environment
-→ Keeps Windows private and untouched
-→ Hosts all AI components
-
-Ollama
-Local AI engine
-→ Runs models like llama3:latest
-→ Provides fast, offline inference
-
-Semantic Kernel
-Agent orchestration framework
-→ Connects C# code with the AI model
-→ Enables tools, memory, and multi‑step reasoning
-
-NovaMind (C#/.NET)
-Custom CLI agent
-→ Sends prompts to Ollama
-→ Receives and displays responses
-→ Will later support advanced agent capabilities
+NovaMind läuft vollständig lokal und benötigt aktuell keine Cloud‑Dienste.
 
 
-# 👨🏽‍💻 Requirements
+# ✅ Aktuelle Features 
+
+# 📅 LLM‑Planner (AgentPlanner)
+- Wandelt natürliche Sprache in strukturierte JSON‑Pläne um
+- Führt mehrere Schritte automatisch aus
+- Erkennt Dateien, Skills und Funktionen
+- Repariert fehlerhafte LLM‑Ausgaben (Validator + Auto‑Fix)
+- Hängt automatisch einen Reflexions‑Schritt an
+- JSON‑Sanitizer entfernt Text vor/nach dem JSON
+
+# 🛠️ Skills (Plugins)
+NovaMind besitzt mehrere modulare Skills:
+- FileSkill -> Dateien lesen, schreiben, löschen, auflisten
+- PdfSkill ->	PDFs lesen, durchsuchen, zusammenfassen
+- CodeSkill ->	Code erklären, TODOs finden, refactoren
+- MemorySkill	-> Informationen speichern, suchen, löschen
+- ReflectSkill ->	Reflektiert das Gesamtergebnis eines Agent‑Plans
+- HelpSkill ->	Zeigt alle verfügbaren Befehle
+
+
+# 🤖 Agent‑Modus (/agent)
+Der Agent‑Modus ist das Herzstück des Projekts:
+- Nutzer gibt einen Befehl ein
+- LLM erstellt einen Plan
+- Validator korrigiert Fehler
+- Agent führt jeden Schritt aus
+- Ergebnisse werden gesammelt
+- Am Ende reflektiert der Agent das Gesamtergebnis 
+
+Beispiel (Im CLI unter dem Projektordner navigieren, dann mit "dotnet run" starten)
+/agent speichere die TODOs aus Program.cs im Memory
+
+Der Agent erkennt automatisch:
+1. Datei lesen
+2. TODOs extrahieren
+3. Memory speichern
+4. Reflexion
+
+# 🧩 Projektarchitektur
+
+NovaMind
+│
+├── Program.cs
+│   → CLI, Kernel, Skills, Agent‑Loop
+│
+├── AgentPlanner.cs
+│   → LLM‑Planner, JSON‑Sanitizer, Validator, Auto‑Fix
+│
+├── Skills/
+│   ├── FileSkill.cs
+│   ├── PdfSkill.cs
+│   ├── CodeSkill.cs
+│   ├── MemorySkill.cs
+│   ├── ReflectSkill.cs
+│   └── HelpSkill.cs
+│
+└── Models/
+    ├── AgentPlan.cs
+    └── AgentStep.cs
+
+
+
+# 🔌 Wie NovaMind funktioniert
+
+1. Program.cs (Das Kontrollzentrum)
+Program.cs:
+- baut den Kernel
+- registriert alle Skills
+- startet die CLI
+- erkennt Befehle wie /pdf, /code, /memory
+- führt Skills direkt aus
+- oder startet den Agent‑Modus
+
+Der Agent-Modus:
+1. /agent <text> wird eingegeben
+2. Program.cs ruft AgentPlanner.CreateLLMPlanAsync() auf
+3. Der Plan wird Schritt für Schritt ausgeführt
+4. Ergebnisse werden gesammelt
+5. ReflectSkill bewertet das Gesamtergebnis
+
+
+2. AgentPlanner (Der Kopf des Agenten)
+Der Planner ist das Herzstück des Systems.
+Er übernimmt:
+## 📅 LLM-Planung
+Er erstellt aus natürlicher Sprache einen JSON-Plan:
+
+{
+  "steps": [
+{
+      "description": "PDF zusammenfassen",
+      "skill": "PdfSkill",
+      "function": "SummarizePdf",
+      "arguments": { "path": "rechnung.pdf" }
+    }
+  ]
+}
+
+# JSON-Sanitizer
+Entfernt Text vor "{" und nach "}".
+
+# Validator
+Korrigiert falsche Skill/Funktions-Kombinationen:
+- LLM erzeugt: CodeSkill.ReadFile
+- Validator korrigiert zu: FileSkill.ReadFile
+
+# Auto-Fix
+Ergänzt fehlende Argumente:
+- path → automatisch aus User‑Input extrahiert
+- lang → automatisch gesetzt
+
+# Reflect-Step
+Jeder Plan endet mit: 
+ReflectSkill.Reflect
+
+
+🧩 3. Skills (Die Werkzeuge des Agenten)
+📁 FileSkill
+- ReadFile(path)
+- WriteFile(path, content)
+- ListFiles(path)
+- DeleteFile(path)
+
+📄 PdfSkill
+- ReadPdf(path)
+- SearchPdf(path, search)
+- SummarizePdf(path)
+
+💻 CodeSkill
+- ReadCode(path)
+- ExplainCode(path, lang)
+- FindIssues(path, lang)
+- RefactorCode(path, lang)
+
+🔮 MemorySkill
+- Remember(input)
+- ShowMemory(category)
+- SearchMemory(text)
+- Forget(input)
+
+🔍 ReflectSkill
+- Reflect(input) → fasst das Gesamtergebnis zusammen
+
+❓ HelpSkill
+- ShowHelp()
+
+
+# 🧪 Beispiele
+- PDF zusammenfassen
+/agent fasse rechnung.pdf zusammen
+
+- TODOs extrahieren und speichern
+/agent speichere die TODOs aus Program.cs im Memory
+
+- Code erklären
+/agent erkläre Program.cs
+
+- Ordner analysieren
+/agent analysiere alle Dateien im src Ordner
+
+# 🔧 Voraussetzungen
+- .NET 8
 - Ubuntu 22.04 (WSL2)
-- .NET 8 SDK
-- Ollama installed
-- Model: llama3:latest
+- Ollama installiert
+- Modell: llama3:latest
+- Semantic Kernel 1.x
 
-# 👟 Running the Agent
-cd NovaMind
+# ▶️ Starten
 dotnet run
 
-# 🏁 Project Goals
-NovaMind aims to evolve into a fully capable local AI agent with:
-- Tool execution (file access, system tools, etc.)
-- PDF and document analysis
-- Memory system
-- Multi‑step reasoning (agent loop)
-- Web or desktop UI
-- Modular architecture for future extensions
-This repository documents the entire development journey.
+ # 🏗️ Architecture Overview
+# 🐧Ubuntu (WSL2)
+Isolierte Entwicklungsumgebung
+- Hält Windows vollständig privat und unangetastet
+- Hostet alle KI‑Komponenten getrennt vom Hauptsystem
+
+# 🦙 Ollama
+Lokale KI‑Engine
+- Führt Modelle wie "llama3:latest" direkt auf deinem Rechner aus
+- bietet schnelle und vollständige antworten offline
+
+# 👨🏽‍💻 Semantic Kernel
+Framework zur Agenten‑Orchestrierung
+- Verbindet deinen C#‑Code mit dem KI‑Modell
+- Ermöglicht Tools/Skills, Memory, Planung und mehrstufiges Reasoning
+
+
+# 🌠 Zukunftsideen:
+-Web UI erstellen
+-Datenbank hinzufügen (Open Source)
+-Containisieren
+-In eine Cloud (Open Source) deployen
 
 
 
-# 🔮 Future plan
-Also to add Security Features like: 
--File Hash Scanner (MD5/SHA256)  
--Detect file tampering by generating and comparing cryptographic hashes.
-
--File Integrity Monitoring  
- -Track file changes using a local hash database and change detection.
-
--Log Analysis Module  
- -Parse and analyze SSH or web server logs to identify suspicious activity.
-
--Port Scanner (TCP)  
- -Scan common ports to detect open services and potential attack surfaces.
-
--Recon Tools  
- -Perform DNS lookups, reverse DNS, and WHOIS queries for basic reconnaissance.
-
--Basic Malware Pattern Scanner  
- -Identify suspicious strings or known malicious patterns in files.
-
--Permission Scanner  
- -Check file and directory permissions for insecure configurations.
-
--Security Automation Integration  
- -Combine multiple modules into automated analysis workflows.
-
-
-Have fun by reading, trying it out and also getting inspirate 🔥🤖
+Viel Spaß beim Lesen und ausprobieren! 🔥🤖
 
 
 
