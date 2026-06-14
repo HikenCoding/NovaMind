@@ -46,25 +46,8 @@ Der Agent erkennt automatisch:
 
 # 🧩 Projektarchitektur
 
-NovaMind
-│
-├── Program.cs
-│   → CLI, Kernel, Skills, Agent‑Loop
-│
-├── AgentPlanner.cs
-│   → LLM‑Planner, JSON‑Sanitizer, Validator, Auto‑Fix
-│
-├── Skills/
-│   ├── FileSkill.cs
-│   ├── PdfSkill.cs
-│   ├── CodeSkill.cs
-│   ├── MemorySkill.cs
-│   ├── ReflectSkill.cs
-│   └── HelpSkill.cs
-│
-└── Models/
-    ├── AgentPlan.cs
-    └── AgentStep.cs
+<img width="471" height="410" alt="image" src="https://github.com/user-attachments/assets/01faa366-3f5d-4f11-a6d7-659fc97fb40c" />
+
 
 
 
@@ -123,6 +106,7 @@ ReflectSkill.Reflect
 
 
 🧩 3. Skills (Die Werkzeuge des Agenten)
+
 📁 FileSkill
 - ReadFile(path)
 - WriteFile(path, content)
@@ -174,7 +158,7 @@ ReflectSkill.Reflect
 - Semantic Kernel 1.x
 
 # ▶️ Starten
-dotnet run
+- dotnet run
 
  # 🏗️ Architecture Overview
 # 🐧Ubuntu (WSL2)
@@ -194,10 +178,10 @@ Framework zur Agenten‑Orchestrierung
 
 
 # 🌠 Zukunftsideen:
--Web UI erstellen
--Datenbank hinzufügen (Open Source)
--Containisieren
--In eine Cloud (Open Source) deployen
+- Web UI erstellen
+- Datenbank hinzufügen (Open Source)
+- Containisieren
+- In eine Cloud (Open Source) deployen
 
 
 
