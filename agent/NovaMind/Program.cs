@@ -301,11 +301,10 @@ if (input.StartsWith("/agent "))
     {
         Console.WriteLine($"→ Schritt: {step.Description}");
 
-        // NEU: Wenn der Skill etwas im Memory speichern soll, geben wir ihm das bisherige Ergebnis im richtigen Format mit!
         if (step.SkillName == "MemorySkill" && step.FunctionName == "Remember")
         {
-            // Wir formatieren es so, wie dein Skill es verlangt (z.B. 'Kategorie: Text')
-            step.Arguments["input"] = $"TODOs: {combinedOutput}";
+            // Nur das Ergebnis des vorherigen Steps speichern
+            step.Arguments["input"] = result ?? "";
         }
 
         // Reflect-Step bekommt das gesammelte Ergebnis
