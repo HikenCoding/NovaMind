@@ -17,6 +17,8 @@ builder.Plugins.AddFromType<FileSkill>();
 builder.Plugins.AddFromType<MemorySkill>();
 builder.Plugins.AddFromType<PdfSkill>();
 builder.Plugins.AddFromType<ReflectSkill>();
+builder.Plugins.AddFromType<DirectorySkill>();
+
 
 
 // CodeSkill manuell registrieren (wegen Konstruktor)
@@ -25,6 +27,7 @@ var codeChatService = sp.GetRequiredService<IChatCompletionService>();
 builder.Plugins.AddFromObject(new CodeSkill(codeChatService));
 
 var kernel = builder.Build();
+builder.Plugins.AddFromType<DirectorySkill>();
 
 // Chat-Service holen
 var chat = kernel.GetRequiredService<IChatCompletionService>();

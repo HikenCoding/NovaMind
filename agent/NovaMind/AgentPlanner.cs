@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 public class AgentStep
@@ -19,71 +20,71 @@ public class AgentPlan
 
 public static class AgentPlanner
 {
-    // 1) Offizielle Funktionen aller Skills
     private static readonly Dictionary<string, (string skill, string function)> KnownFunctions = new()
     {
-        // FileSkill
         ["readfile"] = ("FileSkill", "ReadFile"),
         ["writefile"] = ("FileSkill", "WriteFile"),
         ["listfiles"] = ("FileSkill", "ListFiles"),
         ["deletefile"] = ("FileSkill", "DeleteFile"),
 
-        // PdfSkill
         ["readpdf"] = ("PdfSkill", "ReadPdf"),
         ["searchpdf"] = ("PdfSkill", "SearchPdf"),
         ["summarizepdf"] = ("PdfSkill", "SummarizePdf"),
 
-        // CodeSkill
         ["readcode"] = ("CodeSkill", "ReadCode"),
         ["explaincode"] = ("CodeSkill", "ExplainCode"),
         ["findissues"] = ("CodeSkill", "FindIssues"),
         ["refactorcode"] = ("CodeSkill", "RefactorCode"),
 
-        // MemorySkill
         ["remember"] = ("MemorySkill", "Remember"),
         ["forget"] = ("MemorySkill", "Forget"),
         ["search"] = ("MemorySkill", "Search"),
 
-        // ReflectSkill
-        ["reflect"] = ("ReflectSkill", "Reflect")
+        ["reflect"] = ("ReflectSkill", "Reflect"),
+
+        ["listdirectory"] = ("DirectorySkill", "ListDirectory"),
+        ["analyzedirectory"] = ("DirectorySkill", "AnalyzeDirectory")
     };
 
-    // 2) Aliase für erfundene Funktionsnamen
     private static readonly Dictionary<string, (string skill, string function)> FunctionAliases = new()
     {
-        // CodeSkill Aliases
         ["extracttodos"] = ("CodeSkill", "FindIssues"),
         ["extractcomments"] = ("CodeSkill", "FindIssues"),
         ["gettodos"] = ("CodeSkill", "FindIssues"),
-        ["todoanalysis"] = ("CodeSkill", "FindIssues"),
 
-        // FileSkill Aliases
         ["loadfile"] = ("FileSkill", "ReadFile"),
         ["openfile"] = ("FileSkill", "ReadFile"),
-        ["load"] = ("FileSkill", "ReadFile"),
 
-        // PdfSkill Aliases
         ["loadpdf"] = ("PdfSkill", "ReadPdf"),
-        ["openpdf"] = ("PdfSkill", "ReadPdf")
+        ["openpdf"] = ("PdfSkill", "ReadPdf"),
+
+        ["list_files"] = ("DirectorySkill", "ListDirectory"),
+        ["listfiles"] = ("DirectorySkill", "ListDirectory"),
+        ["listFiles"] = ("DirectorySkill", "ListDirectory"),
+        ["gatherfiles"] = ("DirectorySkill", "ListDirectory"),
+        ["scanfiles"] = ("DirectorySkill", "ListDirectory"),
+
+        ["analyze_file"] = ("DirectorySkill", "AnalyzeDirectory"),
+        ["analyze_files"] = ("DirectorySkill", "AnalyzeDirectory"),
+        ["analyze_directory"] = ("DirectorySkill", "AnalyzeDirectory"),
+        ["analyze_file_contents"] = ("DirectorySkill", "AnalyzeDirectory")
     };
 
-
-    // 3) Valid Skills (für Validator)
     private static readonly Dictionary<string, List<string>> ValidSkills = new()
     {
         ["CodeSkill"] = new() { "ExplainCode", "FindIssues", "RefactorCode", "ReadCode" },
         ["PdfSkill"] = new() { "ReadPdf", "SearchPdf", "SummarizePdf" },
         ["MemorySkill"] = new() { "Remember", "Forget", "Search" },
         ["FileSkill"] = new() { "ReadFile", "WriteFile", "ListFiles", "DeleteFile" },
-        ["ReflectSkill"] = new() { "Reflect" }
+        ["ReflectSkill"] = new() { "Reflect" },
+        ["DirectorySkill"] = new() { "ListDirectory", "AnalyzeDirectory" }
     };
 
-    // 4) Simple Planner (Fallback)
     public static AgentPlan CreateSimplePlan(string input, string lang)
     {
         var plan = new AgentPlan { OriginalRequest = input };
 
-        if (input.Contains("analysiere", StringComparison.OrdinalIgnoreCase))
+        if (input.Contains("analysiere"))
         {
             var parts = input.Split(" ", StringSplitOptions.RemoveEmptyEntries);
             string path = parts[^1];
@@ -104,21 +105,12 @@ public static class AgentPlanner
                 Arguments = new() { ["path"] = path, ["lang"] = lang }
             });
 
-            plan.Steps.Add(new AgentStep
-            {
-                Description = "Reflektiere das Gesamtergebnis",
-                SkillName = "ReflectSkill",
-                FunctionName = "Reflect",
-                Arguments = new()
-            });
-
             return plan;
         }
 
         return plan;
     }
 
-    // 5) LLM Planner
     public static async Task<AgentPlan> CreateLLMPlanAsync(
         string input,
         string lang,
@@ -151,39 +143,40 @@ public static class AgentPlanner
                     Arguments = new()
                 };
 
+                if (string.IsNullOrWhiteSpace(agentStep.FunctionName))
+                {
+                    Console.WriteLine("→ Auto-Fix: Leerer Funktionsname → Step wird entfernt.");
+                    continue;
+                }
 
-                // UNIVERSAL AUTO-FIX für erfundene Funktionsnamen
                 string fnLower = agentStep.FunctionName.ToLower();
 
                 if (FunctionAliases.TryGetValue(fnLower, out var alias))
                 {
-                    Console.WriteLine($"→ Auto-Fix: '{agentStep.FunctionName}' existiert nicht. Verwende {alias.skill}.{alias.function}.");
                     agentStep.SkillName = alias.skill;
                     agentStep.FunctionName = alias.function;
                 }
                 else if (!KnownFunctions.ContainsKey(fnLower))
                 {
-                    Console.WriteLine($"→ Auto-Fix: '{agentStep.FunctionName}' ist unbekannt. Verwende CodeSkill.FindIssues als Fallback.");
-                    agentStep.SkillName = "CodeSkill";
-                    agentStep.FunctionName = "FindIssues";
+                    agentStep.SkillName = "DirectorySkill";
+                    agentStep.FunctionName = "ListDirectory";
                 }
 
-                // Argumente einlesen
                 if (step.TryGetProperty("arguments", out var argsElement))
                 {
                     foreach (var arg in argsElement.EnumerateObject())
                         agentStep.Arguments[arg.Name] = arg.Value.GetString() ?? "";
                 }
 
-                // Auto-Fix: path ergänzen
-                if (!agentStep.Arguments.ContainsKey("path"))
+                if (agentStep.SkillName == "DirectorySkill" &&
+                    !agentStep.Arguments.ContainsKey("path"))
                 {
-                    var file = ExtractFileNameFromInput(input);
-                    if (file != null)
-                        agentStep.Arguments["path"] = file;
+                    agentStep.Arguments["path"] =
+                        input.Contains("src", StringComparison.OrdinalIgnoreCase)
+                        ? "src"
+                        : ".";
                 }
 
-                // Auto-Fix: lang ergänzen
                 if (!agentStep.Arguments.ContainsKey("lang"))
                     agentStep.Arguments["lang"] = lang;
 
@@ -192,23 +185,27 @@ public static class AgentPlanner
         }
         catch
         {
-            Console.WriteLine("⚠️ Der KI‑Planner konnte keinen gültigen JSON‑Plan erzeugen.");
-            Console.WriteLine(json);
+            return CreateSimplePlan(input, lang);
         }
 
-        // Reflect-Step anhängen
+        string reflectInput = "";
+        foreach (var s in plan.Steps)
+        {
+            if (s.SkillName != "ReflectSkill")
+                reflectInput += $"Step: {s.Description}\n";
+        }
+
         plan.Steps.Add(new AgentStep
         {
             Description = "Reflektiere das Gesamtergebnis",
             SkillName = "ReflectSkill",
             FunctionName = "Reflect",
-            Arguments = new()
+            Arguments = new() { ["input"] = reflectInput }
         });
 
         return plan;
     }
 
-    // Hilfsfunktionen
     private static string? ExtractFileNameFromInput(string input)
     {
         foreach (var p in input.Split(" ", StringSplitOptions.RemoveEmptyEntries))
@@ -229,39 +226,18 @@ public static class AgentPlanner
         if (start < 0 || end < 0 || end <= start)
             return "{}";
 
-        string json = raw.Substring(start, end - start + 1).Trim();
-
-        int openBraces = 0, openBrackets = 0;
-
-        foreach (char c in json)
-        {
-            if (c == '{') openBraces++;
-            if (c == '}') openBraces--;
-            if (c == '[') openBrackets++;
-            if (c == ']') openBrackets--;
-        }
-
-        while (openBrackets-- > 0) json += "]";
-        while (openBraces-- > 0) json += "}";
-
-        return json;
+        return raw.Substring(start, end - start + 1).Trim();
     }
 
     private static string DetectSkill(string input)
     {
         input = input.ToLower();
 
-        if (input.Contains(".pdf") || input.Contains("pdf"))
-            return "PdfSkill";
-
-        if (input.Contains(".cs") || input.Contains("code") || input.Contains("todo"))
-            return "CodeSkill";
-
-        if (input.Contains("datei") || input.Contains("ordner"))
-            return "FileSkill";
-
-        if (input.Contains("memory") || input.Contains("merken"))
-            return "MemorySkill";
+        if (input.Contains(".pdf")) return "PdfSkill";
+        if (input.Contains(".cs")) return "CodeSkill";
+        if (input.Contains("ordner") || input.Contains("directory") || input.Contains("folder")) return "DirectorySkill";
+        if (input.Contains("datei") || input.Contains("file")) return "FileSkill";
+        if (input.Contains("memory")) return "MemorySkill";
 
         return "Auto";
     }
@@ -269,8 +245,7 @@ public static class AgentPlanner
     private static string BuildSystemPrompt(string forcedSkill)
     {
         string basePrompt = @"
-Du bist ein KI-Agent Planner.
-Du erzeugst immer JSON im Format:
+Du erzeugst IMMER gültiges JSON:
 {
   ""steps"": [
     {
@@ -281,14 +256,15 @@ Du erzeugst immer JSON im Format:
     }
   ]
 }
+Kein Text außerhalb des JSON.
+Kein '...'.
+Jeder Step MUSS eine Funktion haben.
 ";
 
         if (forcedSkill != "Auto")
         {
             basePrompt += $@"
-WICHTIG:
-Der Benutzer möchte eindeutig eine Aufgabe, die zu {forcedSkill} gehört.
-Erzeuge NUR Schritte mit diesem Skill, außer der letzte Schritt (ReflectSkill).
+Erzeuge NUR Schritte mit {forcedSkill}, außer der letzte Schritt (ReflectSkill).
 ";
         }
 
