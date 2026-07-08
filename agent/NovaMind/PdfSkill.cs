@@ -10,6 +10,8 @@ public class PdfSkill
     [KernelFunction]
     public string ReadPdf(string path)
     {
+        Console.WriteLine($"[PdfSkill] ReadPdf wurde mit path = '{path}' aufgerufen.");
+        
         if (!File.Exists(path))
             return $"❌ File not found: {path}";
 

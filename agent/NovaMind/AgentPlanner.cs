@@ -148,6 +148,18 @@ public static class AgentPlanner
                     Arguments = new()
                 };
 
+                // PDF: Pfad IMMER aus der Eingabe ableiten, LLM-Argumente überschreiben
+                if (forcedSkill == "PdfSkill")
+                {
+                    var file = ExtractFileNameFromInput(input); // liest .pdf aus "/agent öffne rechnung.pdf"
+                    if (file != null)
+                    {
+                        Console.WriteLine($"[Planner] Erzwinge PDF-Pfad: {file}");
+                        agentStep.Arguments["path"] = file;
+                    }
+                }
+
+
                 // ReflectSkill darf NIE ohne input ausgeführt werden
                 if (agentStep.SkillName == "ReflectSkill")
                 {
