@@ -57,6 +57,11 @@ public static class AgentPlanner
 
         ["loadpdf"] = ("PdfSkill", "ReadPdf"),
         ["openpdf"] = ("PdfSkill", "ReadPdf"),
+        ["öffnepdf"] = ("PdfSkill", "ReadPdf"),
+        ["öffne_pdf"] = ("PdfSkill", "ReadPdf"),
+        ["open pdf file"] = ("PdfSkill", "ReadPdf"),
+        ["open"] = ("PdfSkill", "ReadPdf"),
+        ["öffne"] = ("PdfSkill", "ReadPdf"),
 
         ["list_files"] = ("DirectorySkill", "ListDirectory"),
         ["listfiles"] = ("DirectorySkill", "ListDirectory"),
@@ -143,6 +148,35 @@ public static class AgentPlanner
                     Arguments = new()
                 };
 
+                // ReflectSkill darf NIE ohne input ausgeführt werden
+                if (agentStep.SkillName == "ReflectSkill")
+                {
+                    agentStep.FunctionName = "Reflect";
+
+                    // Falls der LLM keinen input gesetzt hat → setzen wir einen
+                    if (!agentStep.Arguments.ContainsKey("input"))
+                        agentStep.Arguments["input"] = agentStep.Description;
+                }
+
+
+
+                // PATCH: Beschreibung darf NIE Funktionsname sein
+                if (agentStep.FunctionName.Equals(agentStep.Description, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"→ Auto-Fix: Beschreibung '{agentStep.Description}' wurde fälschlich als Funktionsname erkannt. Setze Funktion auf ReadPdf.");
+                    agentStep.FunctionName = "ReadPdf";
+                    agentStep.SkillName = "PdfSkill";
+                }
+
+                // PDF erzwingen
+                if (forcedSkill == "PdfSkill" && agentStep.SkillName != "ReflectSkill")
+                {
+                    agentStep.SkillName = "PdfSkill";
+
+                    if (string.IsNullOrWhiteSpace(agentStep.FunctionName))
+                        agentStep.FunctionName = "ReadPdf";
+                }
+
                 if (string.IsNullOrWhiteSpace(agentStep.FunctionName))
                 {
                     Console.WriteLine("→ Auto-Fix: Leerer Funktionsname → Step wird entfernt.");
@@ -158,8 +192,16 @@ public static class AgentPlanner
                 }
                 else if (!KnownFunctions.ContainsKey(fnLower))
                 {
-                    agentStep.SkillName = "DirectorySkill";
-                    agentStep.FunctionName = "ListDirectory";
+                    if (forcedSkill == "PdfSkill")
+                    {
+                        agentStep.SkillName = "PdfSkill";
+                        agentStep.FunctionName = "ReadPdf";
+                    }
+                    else
+                    {
+                        agentStep.SkillName = "DirectorySkill";
+                        agentStep.FunctionName = "ListDirectory";
+                    }
                 }
 
                 if (step.TryGetProperty("arguments", out var argsElement))
@@ -168,13 +210,13 @@ public static class AgentPlanner
                         agentStep.Arguments[arg.Name] = arg.Value.GetString() ?? "";
                 }
 
-                if (agentStep.SkillName == "DirectorySkill" &&
+                // PDF path setzen
+                if (agentStep.SkillName == "PdfSkill" &&
                     !agentStep.Arguments.ContainsKey("path"))
                 {
-                    agentStep.Arguments["path"] =
-                        input.Contains("src", StringComparison.OrdinalIgnoreCase)
-                        ? "src"
-                        : ".";
+                    var file = ExtractFileNameFromInput(input);
+                    if (file != null)
+                        agentStep.Arguments["path"] = file;
                 }
 
                 if (!agentStep.Arguments.ContainsKey("lang"))
@@ -233,11 +275,20 @@ public static class AgentPlanner
     {
         input = input.ToLower();
 
-        if (input.Contains(".pdf")) return "PdfSkill";
-        if (input.Contains(".cs")) return "CodeSkill";
-        if (input.Contains("ordner") || input.Contains("directory") || input.Contains("folder")) return "DirectorySkill";
-        if (input.Contains("datei") || input.Contains("file")) return "FileSkill";
-        if (input.Contains("memory")) return "MemorySkill";
+        if (input.Contains(".pdf") || input.Contains("pdf"))
+            return "PdfSkill";
+
+        if (input.Contains(".cs") || input.Contains("code") || input.Contains("todo"))
+            return "CodeSkill";
+
+        if (input.Contains("ordner") || input.Contains("directory") || input.Contains("folder"))
+            return "DirectorySkill";
+
+        if (input.Contains("datei") || input.Contains("file"))
+            return "FileSkill";
+
+        if (input.Contains("memory") || input.Contains("merken"))
+            return "MemorySkill";
 
         return "Auto";
     }
@@ -257,7 +308,7 @@ Du erzeugst IMMER gültiges JSON:
   ]
 }
 Kein Text außerhalb des JSON.
-Kein '...'.
+Kein '...' .
 Jeder Step MUSS eine Funktion haben.
 ";
 
