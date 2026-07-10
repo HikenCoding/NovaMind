@@ -16,7 +16,6 @@ builder.Plugins.AddFromType<HelpSkill>();
 builder.Plugins.AddFromType<FileSkill>();
 builder.Plugins.AddFromType<MemorySkill>();
 builder.Plugins.AddFromType<PdfSkill>();
-builder.Plugins.AddFromType<ReflectSkill>();
 builder.Plugins.AddFromType<DirectorySkill>();
 
 
@@ -25,6 +24,9 @@ builder.Plugins.AddFromType<DirectorySkill>();
 var sp = builder.Services.BuildServiceProvider();
 var codeChatService = sp.GetRequiredService<IChatCompletionService>();
 builder.Plugins.AddFromObject(new CodeSkill(codeChatService));
+
+// ReflectSkill ebenfalls manuell registrieren (wegen Konstruktor)
+builder.Plugins.AddFromObject(new ReflectSkill(codeChatService));
 
 var kernel = builder.Build();
 builder.Plugins.AddFromType<DirectorySkill>();
@@ -288,59 +290,66 @@ while (true)
     }
 
     // agent 
-if (input.StartsWith("/agent "))
-{
-    string combinedOutput = "";
-    var request = input.Replace("/agent ", "").Trim();
-
-    var plan = await AgentPlanner.CreateLLMPlanAsync(request, lang, chat);
-
-    if (plan.Steps.Count == 0)
+    if (input.StartsWith("/agent "))
     {
-        plan = AgentPlanner.CreateSimplePlan(request, lang);
+        string combinedOutput = "";
+        var request = input.Replace("/agent ", "").Trim();
+
+        var plan = await AgentPlanner.CreateLLMPlanAsync(request, lang, chat);
+
+        if (plan.Steps.Count == 0)
+        {
+            //Test-Ausgabe 1: 
+            Console.WriteLine("⚠️ LLM-Plan war leer. Versuche SimplePlan...");
+            plan = AgentPlanner.CreateSimplePlan(request, lang);
+        }
+        //TEST-Ausgabe 2:
+        Console.WriteLine($"📊 Anzahl der Schritte im Plan: {plan.Steps.Count}");
+
+        foreach (var step in plan.Steps)
+        {
+            Console.WriteLine($"→ Schritt: {step.Description}");
+
+            if (step.SkillName == "MemorySkill" && step.FunctionName == "Remember")
+            {
+                // Nur das Ergebnis des vorherigen Steps speichern
+                step.Arguments["input"] = result ?? "";
+            }
+
+            // Reflect-Step bekommt das gesammelte Ergebnis
+            if (step.FunctionName == "Reflect")
+            {
+                step.Arguments["input"] = combinedOutput;
+            }
+
+            // Dictionary → KernelArguments
+            var agentArgs = new KernelArguments();
+            foreach (var arg in step.Arguments)
+            {
+                agentArgs[arg.Key] = arg.Value;
+            }
+
+            // HIER EINFÜGEN: Den aktuellen Kernel injizieren, damit Skills (wie PdfSkill) ihn nutzen können
+            agentArgs["kernel"] = kernel; 
+
+            // Skill-Funktion holen
+            var function = kernel.Plugins[step.SkillName][step.FunctionName];
+
+            // Ausführen
+            result = await kernel.InvokeAsync<string>(function, agentArgs);
+
+            // Ausgabe
+            Console.WriteLine(result);
+
+            // Ergebnis sammeln (damit der nächste Schritt darauf zugreifen kann)
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                combinedOutput += result + "\n\n";
+            }
+        }
+
+        continue;
     }
-
-    foreach (var step in plan.Steps)
-    {
-        Console.WriteLine($"→ Schritt: {step.Description}");
-
-        if (step.SkillName == "MemorySkill" && step.FunctionName == "Remember")
-        {
-            // Nur das Ergebnis des vorherigen Steps speichern
-            step.Arguments["input"] = result ?? "";
-        }
-
-        // Reflect-Step bekommt das gesammelte Ergebnis
-        if (step.FunctionName == "Reflect")
-        {
-            step.Arguments["input"] = combinedOutput;
-        }
-
-        // Dictionary → KernelArguments
-        var agentArgs = new KernelArguments();
-        foreach (var arg in step.Arguments)
-        {
-            agentArgs[arg.Key] = arg.Value;
-        }
-
-        // Skill-Funktion holen
-        var function = kernel.Plugins[step.SkillName][step.FunctionName];
-
-        // Ausführen
-        result = await kernel.InvokeAsync<string>(function, agentArgs);
-
-        // Ausgabe
-        Console.WriteLine(result);
-
-        // Ergebnis sammeln (damit der nächste Schritt darauf zugreifen kann)
-        if (!string.IsNullOrWhiteSpace(result))
-        {
-            combinedOutput += result + "\n\n";
-        }
-    }
-
-    continue;
-}
 
 
     // EXIT

@@ -140,18 +140,23 @@ public static class AgentPlanner
 
             foreach (var step in steps.EnumerateArray())
             {
+                // Sicheres Auslesen mit TryGetProperty statt GetProperty
+                string description = step.TryGetProperty("description", out var descProp) ? descProp.GetString() ?? "" : "";
+                string skillName = step.TryGetProperty("skill", out var skillProp) ? skillProp.GetString() ?? "" : "";
+                string functionName = step.TryGetProperty("function", out var funcProp) ? funcProp.GetString() ?? "" : "";
+
                 var agentStep = new AgentStep
                 {
-                    Description = step.GetProperty("description").GetString() ?? "",
-                    SkillName = step.GetProperty("skill").GetString() ?? "",
-                    FunctionName = step.GetProperty("function").GetString() ?? "",
+                    Description = description,
+                    SkillName = skillName,
+                    FunctionName = functionName,
                     Arguments = new()
                 };
 
-                // PDF: Pfad IMMER aus der Eingabe ableiten, LLM-Argumente überschreiben
+                // PDF: Pfad IMMER aus der Eingabe ableiten
                 if (forcedSkill == "PdfSkill")
                 {
-                    var file = ExtractFileNameFromInput(input); // liest .pdf aus "/agent öffne rechnung.pdf"
+                    var file = ExtractFileNameFromInput(input);
                     if (file != null)
                     {
                         Console.WriteLine($"[Planner] Erzwinge PDF-Pfad: {file}");
@@ -159,23 +164,18 @@ public static class AgentPlanner
                     }
                 }
 
-
-                // ReflectSkill darf NIE ohne input ausgeführt werden
+                // ReflectSkill Absicherung
                 if (agentStep.SkillName == "ReflectSkill")
                 {
                     agentStep.FunctionName = "Reflect";
-
-                    // Falls der LLM keinen input gesetzt hat → setzen wir einen
                     if (!agentStep.Arguments.ContainsKey("input"))
                         agentStep.Arguments["input"] = agentStep.Description;
                 }
 
-
-
                 // PATCH: Beschreibung darf NIE Funktionsname sein
                 if (agentStep.FunctionName.Equals(agentStep.Description, StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine($"→ Auto-Fix: Beschreibung '{agentStep.Description}' wurde fälschlich als Funktionsname erkannt. Setze Funktion auf ReadPdf.");
+                    Console.WriteLine($"→ Auto-Fix: Beschreibung '{agentStep.Description}' fälschlich als Funktion erkannt. Setze auf ReadPdf.");
                     agentStep.FunctionName = "ReadPdf";
                     agentStep.SkillName = "PdfSkill";
                 }
@@ -184,7 +184,6 @@ public static class AgentPlanner
                 if (forcedSkill == "PdfSkill" && agentStep.SkillName != "ReflectSkill")
                 {
                     agentStep.SkillName = "PdfSkill";
-
                     if (string.IsNullOrWhiteSpace(agentStep.FunctionName))
                         agentStep.FunctionName = "ReadPdf";
                 }
@@ -216,15 +215,23 @@ public static class AgentPlanner
                     }
                 }
 
-                if (step.TryGetProperty("arguments", out var argsElement))
+                // Argumente sicher auslesen
+                if (step.TryGetProperty("arguments", out var argsElement) && argsElement.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var arg in argsElement.EnumerateObject())
-                        agentStep.Arguments[arg.Name] = arg.Value.GetString() ?? "";
+                    {
+                        // GetString() gibt null zurück, wenn der Wert kein JSON-String ist (z.B. eine Zahl oder ein Objekt)
+                        // RawText ist sicherer, falls Llama mal Zahlen oder Booleans liefert
+                        string val = arg.Value.ValueKind == JsonValueKind.String 
+                            ? arg.Value.GetString() ?? "" 
+                            : arg.Value.GetRawText().Trim('"');
+                            
+                        agentStep.Arguments[arg.Name] = val;
+                    }
                 }
 
                 // PDF path setzen
-                if (agentStep.SkillName == "PdfSkill" &&
-                    !agentStep.Arguments.ContainsKey("path"))
+                if (agentStep.SkillName == "PdfSkill" && !agentStep.Arguments.ContainsKey("path"))
                 {
                     var file = ExtractFileNameFromInput(input);
                     if (file != null)
@@ -237,8 +244,10 @@ public static class AgentPlanner
                 plan.Steps.Add(agentStep);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            // Gibt uns im Notfall den genauen Fehlergrund im Terminal aus!
+            Console.WriteLine($"⚠️ Fehler beim Parsen des JSON-Plans: {ex.Message}");
             return CreateSimplePlan(input, lang);
         }
 
