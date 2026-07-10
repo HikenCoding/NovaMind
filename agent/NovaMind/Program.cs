@@ -312,8 +312,15 @@ while (true)
 
             if (step.SkillName == "MemorySkill" && step.FunctionName == "Remember")
             {
-                // Nur das Ergebnis des vorherigen Steps speichern
-                step.Arguments["input"] = result ?? "";
+                if (!combinedOutput.Contains(":") && step.Arguments.ContainsKey("input"))
+                    {
+                        // Wir holen uns die Kategorie aus der Description oder nutzen "dateien" als Fallback
+                        string cat = step.Description.Contains("'") 
+                            ? step.Description.Split('\'')[1] 
+                            : "dateien";
+                            
+                        step.Arguments["input"] = $"{cat}: {combinedOutput}";
+                    }
             }
 
             // Reflect-Step bekommt das gesammelte Ergebnis

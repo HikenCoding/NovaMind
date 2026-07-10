@@ -262,28 +262,57 @@ public static class AgentPlanner
 
                 plan.Steps.Add(agentStep);
             }
+       
         }
         catch (Exception ex)
         {
             // Gibt uns im Notfall den genauen Fehlergrund im Terminal aus!
             Console.WriteLine($"⚠️ Fehler beim Parsen des JSON-Plans: {ex.Message}");
-            return CreateSimplePlan(input, lang);
+            plan = CreateSimplePlan(input, lang);
         }
 
-        string reflectInput = "";
-        foreach (var s in plan.Steps)
+        // 🔥 BOOSTER-ZONE: Hier unten steht er absolut sicher vor jedem Absturz!
+        // Wenn der User "memory" oder "speichere" verlangt, aber noch kein MemorySkill im Plan ist...
+        if ((input.ToLower().Contains("memory") || input.ToLower().Contains("speichere")) && 
+            !plan.Steps.Any(s => s.SkillName == "MemorySkill"))
         {
-            if (s.SkillName != "ReflectSkill")
-                reflectInput += $"Step: {s.Description}\n";
-        }
+            Console.WriteLine("⚡ NovaMind-Power: Memory-Bedarf erkannt! Injiziere automatischen Speicher-Schritt...");
+            
+            string category = "general";
+            if (input.ToLower().Contains("kategorie"))
+            {
+                var words = input.Split(' ');
+                for (int i = 0; i < words.Length - 1; i++)
+                {
+                    if (words[i].ToLower().Contains("kategorie"))
+                    {
+                        category = words[i + 1].Trim(',', '.', ' ');
+                        break;
+                    }
+                }
+            }
 
-        plan.Steps.Add(new AgentStep
-        {
-            Description = "Reflektiere das Gesamtergebnis",
-            SkillName = "ReflectSkill",
-            FunctionName = "Reflect",
-            Arguments = new() { ["input"] = reflectInput }
-        });
+            var memoryStep = new AgentStep
+            {
+                Description = $"Speichere das Ergebnis in der Kategorie '{category}'",
+                SkillName = "MemorySkill",
+                FunctionName = "Remember",
+                Arguments = new()
+                {
+                    ["input"] = $"{category}: " 
+                }
+            };
+            
+            int reflectIdx = plan.Steps.FindIndex(s => s.SkillName == "ReflectSkill" || s.FunctionName == "Reflect");
+            if (reflectIdx >= 0)
+            {
+                plan.Steps.Insert(reflectIdx, memoryStep);
+            }
+            else
+            {
+                plan.Steps.Add(memoryStep);
+            }
+        }
 
         return plan;
     }
