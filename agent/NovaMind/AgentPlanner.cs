@@ -129,7 +129,9 @@ public static class AgentPlanner
         chatHistory.AddUserMessage($"Erstelle einen Plan für diese Anfrage:\n{input}");
 
         var response = await chat.GetChatMessageContentAsync(chatHistory);
-        var json = SanitizeJson(response.Content ?? "{}");
+        // Rohen Tet vom LLM holen
+        string json = response.Content ?? "{}";
+        json = SanitizeJson(json);
 
         AgentPlan plan = new AgentPlan { OriginalRequest = input };
 
