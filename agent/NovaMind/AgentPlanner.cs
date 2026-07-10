@@ -210,8 +210,22 @@ public static class AgentPlanner
                     }
                     else
                     {
-                        agentStep.SkillName = "DirectorySkill";
-                        agentStep.FunctionName = "ListDirectory";
+                        var file = ExtractFileNameFromInput(input);
+                        if (file != null && file.EndsWith(".cs"))
+                        {
+                            agentStep.SkillName = "CodeSkill";
+                            agentStep.FunctionName = "ExplainCode";
+                        }
+                        else if (file != null && (file.EndsWith(".txt") || file.EndsWith(".json") || file.EndsWith(".md")))
+                        {
+                            agentStep.SkillName = "FileSkill";
+                            agentStep.FunctionName = "ReadFile";
+                        }
+                        else
+                        {
+                            agentStep.SkillName = "DirectorySkill";
+                            agentStep.FunctionName = "ListDirectory";
+                        }
                     }
                 }
 
@@ -230,12 +244,15 @@ public static class AgentPlanner
                     }
                 }
 
-                // PDF path setzen
-                if (agentStep.SkillName == "PdfSkill" && !agentStep.Arguments.ContainsKey("path"))
+                // und das LLM den "path" vergessen hat -> automatisch aus dem User-Input extrahieren!
+                if (!agentStep.Arguments.ContainsKey("path"))
                 {
                     var file = ExtractFileNameFromInput(input);
                     if (file != null)
+                    {
+                        Console.WriteLine($"[Planner] Auto-Fix: Injiziere fehlenden Pfad '{file}' für {agentStep.SkillName}.{agentStep.FunctionName}");
                         agentStep.Arguments["path"] = file;
+                    }
                 }
 
                 if (!agentStep.Arguments.ContainsKey("lang"))
@@ -272,7 +289,7 @@ public static class AgentPlanner
     private static string? ExtractFileNameFromInput(string input)
     {
         foreach (var p in input.Split(" ", StringSplitOptions.RemoveEmptyEntries))
-            if (p.EndsWith(".pdf") || p.EndsWith(".cs"))
+            if (p.Contains(".") && (p.EndsWith(".pdf") || p.EndsWith(".cs") || p.EndsWith(".txt") || p.EndsWith(".json") || p.EndsWith(".md")))
                 return p;
 
         return null;
