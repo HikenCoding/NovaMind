@@ -72,7 +72,12 @@ public static class AgentPlanner
         ["analyze_file"] = ("DirectorySkill", "AnalyzeDirectory"),
         ["analyze_files"] = ("DirectorySkill", "AnalyzeDirectory"),
         ["analyze_directory"] = ("DirectorySkill", "AnalyzeDirectory"),
-        ["analyze_file_contents"] = ("DirectorySkill", "AnalyzeDirectory")
+        ["analyze_file_contents"] = ("DirectorySkill", "AnalyzeDirectory"),
+
+        ["summarize"] = ("PdfSkill", "SummarizePdf"),
+        ["summarizepdf"] = ("PdfSkill", "SummarizePdf"),
+        ["zusammenfassen"] = ("PdfSkill", "SummarizePdf"),
+        ["fassezusammen"] = ("PdfSkill", "SummarizePdf")
     };
 
     private static readonly Dictionary<string, List<string>> ValidSkills = new()
@@ -86,10 +91,12 @@ public static class AgentPlanner
     };
 
     public static AgentPlan CreateSimplePlan(string input, string lang)
-    {
+{
         var plan = new AgentPlan { OriginalRequest = input };
+        string inputLower = input.ToLower();
 
-        if (input.Contains("analysiere"))
+        // 🕵️‍♂️ FALLBACK 1: C#-Code-Analyse
+        if (inputLower.Contains("analysiere"))
         {
             var parts = input.Split(" ", StringSplitOptions.RemoveEmptyEntries);
             string path = parts[^1];
@@ -108,6 +115,33 @@ public static class AgentPlanner
                 SkillName = "CodeSkill",
                 FunctionName = "FindIssues",
                 Arguments = new() { ["path"] = path, ["lang"] = lang }
+            });
+
+            return plan;
+        }
+
+        if (inputLower.Contains(".pdf") || inputLower.Contains("pdf"))
+        {
+            var file = ExtractFileNameFromInput(input) ?? "muster.pdf";
+            
+            // Schritt A: PDF einlesen oder zusammenfassen
+            bool wantsSummary = inputLower.Contains("fasse") || inputLower.Contains("zusammen") || inputLower.Contains("summarize");
+            
+            plan.Steps.Add(new AgentStep
+            {
+                Description = wantsSummary ? $"Fasse das PDF-Dokument '{file}' zusammen" : $"Lese das PDF-Dokument '{file}'",
+                SkillName = "PdfSkill",
+                FunctionName = wantsSummary ? "SummarizePdf" : "ReadPdf",
+                Arguments = new() { ["path"] = file, ["lang"] = lang }
+            });
+
+            // Schritt B: Reflexion anhängen
+            plan.Steps.Add(new AgentStep
+            {
+                Description = "Reflektiere das Gesamtergebnis",
+                SkillName = "ReflectSkill",
+                FunctionName = "Reflect",
+                Arguments = new() { ["input"] = "", ["lang"] = lang }
             });
 
             return plan;
@@ -208,7 +242,9 @@ public static class AgentPlanner
                     if (forcedSkill == "PdfSkill")
                     {
                         agentStep.SkillName = "PdfSkill";
-                        agentStep.FunctionName = "ReadPdf";
+                        agentStep.FunctionName = (input.ToLower().Contains("fasse") || input.ToLower().Contains("zusammen") || input.ToLower().Contains("summarize")) 
+                            ? "SummarizePdf" 
+                            : "ReadPdf";
                     }
                     else
                     {
