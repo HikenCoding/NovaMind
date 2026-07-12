@@ -65,7 +65,6 @@ public class PdfSkill
             return $"❌ File not found: {path}";
 
         string text;
-
         try
         {
             text = ExtractText(path);
@@ -83,13 +82,14 @@ public class PdfSkill
 
         var lang = LanguageDetector.Detect(text);
 
+        // 🔥 PROMPT-TUNING: Dem LLM unmissverständlich klar machen, dass der Text da ist!
         history.AddSystemMessage(
             lang == "German"
-            ? "Du bist NovaMind. Fasse den folgenden PDF‑Inhalt klar und präzise auf Deutsch zusammen."
-            : "You are NovaMind. Summarize the following PDF content clearly and concisely in English."
+            ? "Du bist NovaMind. Dir wird der bereits extrahierte Text aus einer PDF-Datei übergeben. Fasse diesen Text klar, präzise und strukturiert auf Deutsch zusammen. Behaupte nicht, dass du keinen Zugriff auf die Datei hast, denn der Text liegt dir unten vollständig vor!"
+            : "You are NovaMind. You are provided with the pre-extracted text from a PDF file. Summarize this text clearly and concisely in English. Do not claim you cannot access the file, as the text is provided directly below!"
         );
 
-        history.AddUserMessage(text);
+        history.AddUserMessage($"Hier ist der extrahierte PDF-Inhalt zur Zusammenfassung:\n\n{text}");
 
         var response = await chat.GetChatMessageContentAsync(history);
 
