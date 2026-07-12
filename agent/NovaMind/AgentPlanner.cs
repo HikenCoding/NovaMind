@@ -94,37 +94,33 @@ public static class AgentPlanner
 {
         var plan = new AgentPlan { OriginalRequest = input };
         string inputLower = input.ToLower();
+        var file = ExtractFileNameFromInput(input);
 
         // 🕵️‍♂️ FALLBACK 1: C#-Code-Analyse
-        if (inputLower.Contains("analysiere"))
+        if (inputLower.Contains("analysiere") && file != null && file.EndsWith(".cs"))
         {
-            var parts = input.Split(" ", StringSplitOptions.RemoveEmptyEntries);
-            string path = parts[^1];
-
             plan.Steps.Add(new AgentStep
             {
-                Description = $"Erkläre den Code in {path}",
+                Description = $"Erkläre den Code in {file}",
                 SkillName = "CodeSkill",
                 FunctionName = "ExplainCode",
-                Arguments = new() { ["path"] = path, ["lang"] = lang }
+                Arguments = new() { ["path"] = file, ["lang"] = lang }
             });
 
             plan.Steps.Add(new AgentStep
             {
-                Description = $"Finde Probleme im Code {path}",
+                Description = $"Finde Probleme im Code {file}",
                 SkillName = "CodeSkill",
                 FunctionName = "FindIssues",
-                Arguments = new() { ["path"] = path, ["lang"] = lang }
+                Arguments = new() { ["path"] = file, ["lang"] = lang }
             });
 
             return plan;
         }
 
-        if (inputLower.Contains(".pdf") || inputLower.Contains("pdf"))
+        // 🕵️‍♂️ FALLBACK 2: PDF-Zusammenfassung retten
+        if (file != null && file.EndsWith(".pdf"))
         {
-            var file = ExtractFileNameFromInput(input) ?? "muster.pdf";
-            
-            // Schritt A: PDF einlesen oder zusammenfassen
             bool wantsSummary = inputLower.Contains("fasse") || inputLower.Contains("zusammen") || inputLower.Contains("summarize");
             
             plan.Steps.Add(new AgentStep
@@ -135,7 +131,6 @@ public static class AgentPlanner
                 Arguments = new() { ["path"] = file, ["lang"] = lang }
             });
 
-            // Schritt B: Reflexion anhängen
             plan.Steps.Add(new AgentStep
             {
                 Description = "Reflektiere das Gesamtergebnis",
@@ -143,6 +138,32 @@ public static class AgentPlanner
                 FunctionName = "Reflect",
                 Arguments = new() { ["input"] = "", ["lang"] = lang }
             });
+
+            return plan;
+        }
+
+        // 🔥 BRANDNEU - FALLBACK 3: Normale Textdateien (.txt, .md, .json) einlesen retten!
+        if (file != null && (file.EndsWith(".txt") || file.EndsWith(".md") || file.EndsWith(".json")))
+        {
+            plan.Steps.Add(new AgentStep
+            {
+                Description = $"Lese den Inhalt der Datei '{file}'",
+                SkillName = "FileSkill",
+                FunctionName = "ReadFile",
+                Arguments = new() { ["path"] = file, ["lang"] = lang }
+            });
+
+            // Wenn der User es nicht explizit im Gedächtnis speichern will, hängen wir eine Reflexion an
+            if (!inputLower.Contains("speichere") && !inputLower.Contains("memory"))
+            {
+                plan.Steps.Add(new AgentStep
+                {
+                    Description = "Erkläre den Inhalt der Datei",
+                    SkillName = "ReflectSkill",
+                    FunctionName = "Reflect",
+                    Arguments = new() { ["input"] = "", ["lang"] = lang }
+                });
+            }
 
             return plan;
         }

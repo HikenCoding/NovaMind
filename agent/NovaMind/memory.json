@@ -13,9 +13,12 @@
   },
   "rechnung": {
     "item1": "Scharchnasen AG hat 6152 Euro offen",
-    "item2": "Schnarchnasen AG"
+    "item2": "Schnarchnasen AG",
+    "item3": "Schnarchnasen AG"
   },
   "dateien": {
-    "item1": ""
+    "item1": "",
+    "item2": "",
+    "item3": "Hallo NovaMind!"
   }
 }

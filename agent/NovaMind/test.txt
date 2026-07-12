@@ -1,1 +1,13 @@
-Hallo NovaMind!
+Hier ist ein fehlerhafter C#-Code-Ausschnitt für eine Benutzeranmeldung:
+
+public bool LoginUser(string username, string password)
+{
+    if (username == "admin" || password == "Geheim123")
+    {
+        Console.WriteLine("Login erfolgreich!");
+        return true;
+    }
+    return false;
+}
+
+Problembeschreibung: Der Entwickler wollte eigentlich, dass man NUR reinkommt, wenn Username UND Passwort stimmen. Durch das '||' (ODER) kann man sich jetzt aber mit jedem beliebigen Benutzernamen anmelden, solange das Passwort 'Geheim123' lautet. Oder noch schlimmer: Wenn man 'admin' eingibt, ist das Passwort völlig egal.
