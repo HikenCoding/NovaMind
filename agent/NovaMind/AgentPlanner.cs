@@ -258,14 +258,23 @@ public static class AgentPlanner
                     agentStep.SkillName = alias.skill;
                     agentStep.FunctionName = alias.function;
                 }
+
                 else if (!KnownFunctions.ContainsKey(fnLower))
                 {
+                    string inputLower = input.ToLower();
+
                     if (forcedSkill == "PdfSkill")
                     {
                         agentStep.SkillName = "PdfSkill";
-                        agentStep.FunctionName = (input.ToLower().Contains("fasse") || input.ToLower().Contains("zusammen") || input.ToLower().Contains("summarize")) 
+                        agentStep.FunctionName = (inputLower.Contains("fasse") || inputLower.Contains("zusammen") || inputLower.Contains("summarize")) 
                             ? "SummarizePdf" 
                             : "ReadPdf";
+                    }
+                    // 🔥 NEU: Wenn der User eine Erklärung will und das LLM bei Folgeschritten (Schritt 2, 3...) halluziniert, nutzen wir ReflectSkill!
+                    else if ((inputLower.Contains("erkläre") || inputLower.Contains("erklär") || inputLower.Contains("explain")) && plan.Steps.Count > 0)
+                    {
+                        agentStep.SkillName = "ReflectSkill";
+                        agentStep.FunctionName = "Reflect";
                     }
                     else
                     {
