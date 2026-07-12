@@ -323,6 +323,16 @@ public static class AgentPlanner
                     }
                 }
 
+                // Auto-Pfad für den DirectorySkill, falls 'path' fehlt, leer ist oder 'current' heißt
+                if (agentStep.SkillName == "DirectorySkill")
+                {
+                    if (!agentStep.Arguments.ContainsKey("path") || string.IsNullOrWhiteSpace(agentStep.Arguments["path"]) || agentStep.Arguments["path"] == "current")
+                    {
+                        Console.WriteLine($"[Planner] Auto-Fix: Injiziere aktuellen Ordner '.' für {agentStep.SkillName}.{agentStep.FunctionName}");
+                        agentStep.Arguments["path"] = "."; // '.' steht in C# für das aktuelle Verzeichnis
+                    }
+                }
+
                 if (!agentStep.Arguments.ContainsKey("lang"))
                     agentStep.Arguments["lang"] = lang;
 
