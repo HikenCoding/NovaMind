@@ -82,4 +82,86 @@ public class AgentPlannerTests
         Assert.Equal(".", step.Arguments["path"]); // Muss auf das aktuelle Verzeichnis zeigen!
         Assert.Equal("de", step.Arguments["lang"]); // Sprache muss korrekt mitgeschleift werden
     }
+
+
+    [Fact]
+    public async Task CreateLLMPlan_ShouldTriggerSimplePlanFallback_WhenLlmReturnsMalformedJson()
+    {
+        // 1. ARRANGE (Entspricht TC7 - JSON-Parser Absturzschutz)
+        string userInput = "/agent speichere den Inhalt von test.txt im Memory unter der Kategorie dateien";
+        string targetLanguage = "de";
+
+        // Wir simulieren das fehlerhafte JSON, das Llama geliefert hat (ein einzelner Punkt bricht die Syntax)
+        string malformedLlmResponse = "⚠️ Fehler beim Parsen... . is an invalid start of a value.";
+
+        var mockChat = new MockChatCompletionService(malformedLlmResponse);
+
+        // 2. ACT
+        AgentPlan plan = await AgentPlanner.CreateLLMPlanAsync(userInput, targetLanguage, mockChat);
+
+        // 3. ASSERT
+        Assert.NotNull(plan);
+        // Da das JSON kaputt war, greift der catch-Block und ruft CreateSimplePlan auf!
+        // Der SimplePlan für .txt fügt ReadFile hinzu, und der Booster injiziert den Speicher-Schritt.
+        Assert.Equal(2, plan.Steps.Count); 
+        
+        // Überprüfung von Schritt 1 (ReadFile)
+        Assert.Equal("FileSkill", plan.Steps[0].SkillName);
+        Assert.Equal("ReadFile", plan.Steps[0].FunctionName);
+        Assert.Equal("test.txt", plan.Steps[0].Arguments["path"]);
+
+        // Überprüfung von Schritt 2 (Remember)
+        Assert.Equal("MemorySkill", plan.Steps[1].SkillName);
+        Assert.Equal("Remember", plan.Steps[1].FunctionName); 
+        
+        // Verifiziert den 'input'-Key statt 'category'
+        Assert.True(plan.Steps[1].Arguments.ContainsKey("input"), "Der 'input'-Parameter fehlt im Memory-Schritt.");
+        Assert.Equal("dateien: ", plan.Steps[1].Arguments["input"]);
+    }
+
+    [Fact]
+    public async Task CreateLLMPlan_ShouldRedirectHallucinatedFollowUpStepsToReflectSkill()
+    {
+        // 1. ARRANGE (Entspricht TC4 / TC10 - Schutz vor Fantasie-APIs bei Erklärungen)
+        string userInput = "summarize test.txt in english";
+        string targetLanguage = "en";
+
+        // Wir simulieren, dass das LLM zwar Schritt 1 richtig baut, aber für Schritt 2 APIs erfindet
+        string fakeLlmJson = @"
+        {
+          ""steps"": [
+            {
+              ""description"": ""Read File"",
+              ""skill"": ""FileSkill"",
+              ""function"": ""ReadFile"",
+              ""arguments"": { ""path"": ""test.txt"" }
+            },
+            {
+              ""description"": ""Convert text to English using Google Translate API"",
+              ""skill"": ""Auto"",
+              ""function"": ""TranslateUsingGoogleAPI"",
+              ""arguments"": {}
+            }
+          ]
+        }";
+
+        var mockChat = new MockChatCompletionService(fakeLlmJson);
+
+        // 2. ACT
+        AgentPlan plan = await AgentPlanner.CreateLLMPlanAsync(userInput, targetLanguage, mockChat);
+
+        // 3. ASSERT
+        Assert.NotNull(plan);
+        Assert.Equal(2, plan.Steps.Count);
+
+        // Schritt 1 bleibt unberührt
+        Assert.Equal("FileSkill", plan.Steps[0].SkillName);
+        
+        // 🔥 Schritt 2: Die Fantasie-API muss vollautomatisch auf ReflectSkill umgebogen worden sein!
+        var hijackedStep = plan.Steps[1];
+        Assert.Equal("ReflectSkill", hijackedStep.SkillName);
+        Assert.Equal("Reflect", hijackedStep.FunctionName);
+        Assert.Equal("en", hijackedStep.Arguments["lang"]); // Muss das korrekte Sprach-Argument besitzen
+    }
+
 }
