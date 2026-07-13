@@ -7,7 +7,6 @@ using System.Text;
 
 namespace NovaMind.Tests;
 
-// 🤖 Ein minimalistischer Mock für den Semantic Kernel Chat-Dienst
 public class MockChatCompletionService : IChatCompletionService
 {
     private readonly string _responseToReturn;
@@ -47,7 +46,7 @@ public class AgentPlannerTests
     [Fact]
     public async Task CreateLLMPlan_ShouldInjectCurrentDirectory_WhenLlmOmitsPath()
     {
-        // 1. ARRANGE (Vorbereitung des Testfalls - entspricht TC9)
+        // 1. ARRANGE (Vorbereitung des Testfalls)
         string userInput = "liste alle Dateien im aktuellen Ordner auf";
         string targetLanguage = "de";
 
@@ -77,7 +76,7 @@ public class AgentPlannerTests
         Assert.Equal("DirectorySkill", step.SkillName);
         Assert.Equal("ListDirectory", step.FunctionName);
         
-        // 🔥 Hier prüfen wir, ob dein Auto-Fix in AgentPlanner.cs gegriffen hat!
+        // Hier prüfen wir, ob dein Auto-Fix in AgentPlanner.cs gegriffen hat!
         Assert.True(step.Arguments.ContainsKey("path"), "Der 'path'-Parameter fehlt im resultierenden Plan!");
         Assert.Equal(".", step.Arguments["path"]); // Muss auf das aktuelle Verzeichnis zeigen!
         Assert.Equal("de", step.Arguments["lang"]); // Sprache muss korrekt mitgeschleift werden
@@ -87,7 +86,7 @@ public class AgentPlannerTests
     [Fact]
     public async Task CreateLLMPlan_ShouldTriggerSimplePlanFallback_WhenLlmReturnsMalformedJson()
     {
-        // 1. ARRANGE (Entspricht TC7 - JSON-Parser Absturzschutz)
+        // 1. ARRANGE (Entspricht JSON-Parser Absturzschutz)
         string userInput = "/agent speichere den Inhalt von test.txt im Memory unter der Kategorie dateien";
         string targetLanguage = "de";
 
@@ -122,7 +121,7 @@ public class AgentPlannerTests
     [Fact]
     public async Task CreateLLMPlan_ShouldRedirectHallucinatedFollowUpStepsToReflectSkill()
     {
-        // 1. ARRANGE (Entspricht TC4 / TC10 - Schutz vor Fantasie-APIs bei Erklärungen)
+        // 1. ARRANGE (Schutz vor Fantasie-APIs bei Erklärungen)
         string userInput = "summarize test.txt in english";
         string targetLanguage = "en";
 
@@ -168,7 +167,7 @@ public class AgentPlannerTests
 [Fact]
     public async Task CreateLLMPlan_ShouldEnforcePdfSkillAndExtractPath_WhenPdfIsRequested()
     {
-        // 1. ARRANGE (Entspricht TC2/TC3)
+        // 1. ARRANGE 
         string userInput = "fasse muster.pdf zusammen";
         string targetLanguage = "de";
 
@@ -205,7 +204,7 @@ public class AgentPlannerTests
     [Fact]
     public async Task CreateSimplePlan_ShouldGenerateCodeAnalysisSteps_WhenCsFileIsAnalyzed()
     {
-        // 1. ARRANGE (Entspricht TC5/TC8)
+        // 1. ARRANGE
         string userInput = "analysiere Program.cs";
         string targetLanguage = "de";
 
