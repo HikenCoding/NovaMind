@@ -164,4 +164,68 @@ public class AgentPlannerTests
         Assert.Equal("en", hijackedStep.Arguments["lang"]); // Muss das korrekte Sprach-Argument besitzen
     }
 
+
+[Fact]
+    public async Task CreateLLMPlan_ShouldEnforcePdfSkillAndExtractPath_WhenPdfIsRequested()
+    {
+        // 1. ARRANGE (Entspricht TC2/TC3)
+        string userInput = "fasse muster.pdf zusammen";
+        string targetLanguage = "de";
+
+        // Wir simulieren ein unvollständiges LLM-JSON, das den Pfad vergessen hat
+        string fakeLlmJson = @"
+        {
+          ""steps"": [
+            {
+              ""description"": ""Zusammenfassung des Dokuments"",
+              ""skill"": ""Auto"",
+              ""function"": ""summarize"",
+              ""arguments"": {}
+            }
+          ]
+        }";
+
+        var mockChat = new MockChatCompletionService(fakeLlmJson);
+
+        // 2. ACT
+        AgentPlan plan = await AgentPlanner.CreateLLMPlanAsync(userInput, targetLanguage, mockChat);
+
+        // 3. ASSERT
+        Assert.NotNull(plan);
+        Assert.Single(plan.Steps);
+
+        var step = plan.Steps[0];
+        // Der Planner muss den Pfad extrahiert und den Skill auf PdfSkill korrigiert haben!
+        Assert.Equal("PdfSkill", step.SkillName);
+        Assert.Equal("SummarizePdf", step.FunctionName); // 'summarize' Alias wurde aufgelöst
+        Assert.Equal("muster.pdf", step.Arguments["path"]);
+        Assert.Equal("de", step.Arguments["lang"]);
+    }
+
+    [Fact]
+    public async Task CreateSimplePlan_ShouldGenerateCodeAnalysisSteps_WhenCsFileIsAnalyzed()
+    {
+        // 1. ARRANGE (Entspricht TC5/TC8)
+        string userInput = "analysiere Program.cs";
+        string targetLanguage = "de";
+
+        // 2. ACT
+        // Wir rufen direkt den SimplePlan Fallback auf, der bei Code-Analysen triggert
+        AgentPlan plan = AgentPlanner.CreateSimplePlan(userInput, targetLanguage);
+
+        // 3. ASSERT
+        Assert.NotNull(plan);
+        Assert.Equal(2, plan.Steps.Count); // Muss ExplainCode UND FindIssues enthalten
+
+        // Schritt 1: Code erklären
+        Assert.Equal("CodeSkill", plan.Steps[0].SkillName);
+        Assert.Equal("ExplainCode", plan.Steps[0].FunctionName);
+        Assert.Equal("Program.cs", plan.Steps[0].Arguments["path"]);
+
+        // Schritt 2: Probleme finden
+        Assert.Equal("CodeSkill", plan.Steps[1].SkillName);
+        Assert.Equal("FindIssues", plan.Steps[1].FunctionName);
+        Assert.Equal("Program.cs", plan.Steps[1].Arguments["path"]);
+    }
+
 }
