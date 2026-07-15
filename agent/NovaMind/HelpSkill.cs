@@ -2,7 +2,7 @@ using Microsoft.SemanticKernel;
 
 public class HelpSkill 
 {
-    [KernelFunction] //this method is only used for the Agent NovaMind
+    [KernelFunction]
     public string ShowHelp() //returning the text currently in our terminal
     {
         return "Available commands:\n" +
