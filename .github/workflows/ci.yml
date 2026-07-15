@@ -18,12 +18,14 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    # Hier haben wir jetzt den Pfad angepasst: "agent/NovaMind/"
+    # 1. Stellt alle NuGet-Pakete für das Testprojekt (und dessen Abhängigkeiten) wieder her
     - name: Restore dependencies
-      run: dotnet restore agent/NovaMind/
+      run: dotnet restore agent/NovaMind/NovaMind.Tests/NovaMind.Tests.csproj
 
+    # 2. Baut das Testprojekt (und automatisch das Hauptprojekt NovaMind) im Release-Modus
     - name: Build
-      run: dotnet build agent/NovaMind/ --no-restore --configuration Release
+      run: dotnet build agent/NovaMind/NovaMind.Tests/NovaMind.Tests.csproj --no-restore --configuration Release
 
+    # 3. Führt die Tests absolut sicher und blitzschnell ohne erneuten Build aus
     - name: Test
       run: dotnet test agent/NovaMind/NovaMind.Tests/NovaMind.Tests.csproj --no-build --configuration Release --verbosity normal
