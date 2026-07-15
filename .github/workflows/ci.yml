@@ -26,4 +26,4 @@ jobs:
       run: dotnet build agent/NovaMind/ --no-restore --configuration Release
 
     - name: Test
-      run: dotnet test agent/NovaMind/ --no-build --verbosity normal
+      run: dotnet test agent/NovaMind/NovaMind.Tests/NovaMind.Tests.csproj --no-build --configuration Release --verbosity normal
