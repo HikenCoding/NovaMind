@@ -1,63 +1,113 @@
-using Microsoft.SemanticKernel;
+using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.SemanticKernel;
 
+/// <summary>
+/// Skill zur Interaktion mit dem Dateisystem und Verzeichnisstrukturen.
+/// </summary>
 public class DirectorySkill
 {
-    // 1) Ordner auflisten
+    /// <summary>
+    /// Listet alle Dateien innerhalb eines Verzeichnisses (inkl. Unterverzeichnisse) sicher auf.
+    /// </summary>
     [KernelFunction]
     public string ListDirectory(string path)
     {
-        if (!Directory.Exists(path))
-            return $"❌ Ordner nicht gefunden: {path}";
+        try
+        {
+            // Verhindert relative Pfad-Verwirrungen
+            var fullPath = Path.GetFullPath(path);
 
-        var files = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories);
+            if (!Directory.Exists(fullPath))
+                return $"❌ Ordner nicht gefunden: {path}";
 
-        if (files.Length == 0)
-            return $"📁 Ordner ist leer: {path}";
+            var files = Directory.GetFiles(fullPath, "*.*", SearchOption.AllDirectories);
 
-        return "📄 Gefundene Dateien:\n" + string.Join("\n", files);
+            if (files.Length == 0)
+                return $"📁 Ordner ist leer: {path}";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("📄 Gefundene Dateien:");
+            foreach (var file in files)
+            {
+                // Zeigt nur den relativen Pfad ab dem gesuchten Ordner an, um die LLM-Kontext-Tokens zu schonen
+                var relativePath = Path.GetRelativePath(fullPath, file);
+                sb.AppendLine($"- {relativePath}");
+            }
+
+            return sb.ToString();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return $"❌ Keine Berechtigung, um auf den Ordner zuzugreifen: {path}";
+        }
+        catch (Exception ex)
+        {
+            return $"❌ Fehler beim Lesen des Ordners '{path}': {ex.Message}";
+        }
     }
 
-    // 2) Ordner analysieren (alle .cs Dateien)
-    //    → nutzt CodeSkill.ExplainCode + CodeSkill.FindIssues
+    /// <summary>
+    /// Analysiert alle C#-Dateien im Verzeichnis, indem es Code-Erklärungen und Issues generiert.
+    /// </summary>
     [KernelFunction]
-    public async Task<string> AnalyzeDirectory(string path, Kernel kernel)
+    public async Task<string> AnalyzeDirectory(string path, Kernel kernel, string lang = "de") // 🚀 Dynamische Zielsprache mit Fallback
     {
-        if (!Directory.Exists(path))
-            return $"❌ Ordner nicht gefunden: {path}";
-
-        var files = Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories);
-
-        if (files.Length == 0)
-            return $"📁 Keine .cs Dateien im Ordner: {path}";
-
-        var sb = new StringBuilder();
-
-        foreach (var file in files)
+        try
         {
-            sb.AppendLine($"====================================================");
-            sb.AppendLine($"📄 Datei: {file}");
-            sb.AppendLine($"====================================================\n");
+            var fullPath = Path.GetFullPath(path);
 
-            var args = new KernelArguments
+            if (!Directory.Exists(fullPath))
+                return $"❌ Ordner nicht gefunden: {path}";
+
+            var files = Directory.GetFiles(fullPath, "*.cs", SearchOption.AllDirectories);
+
+            if (files.Length == 0)
+                return $"📁 Keine .cs Dateien im Ordner: {path}";
+
+            var sb = new StringBuilder();
+
+            foreach (var file in files)
             {
-                ["path"] = file,
-                ["lang"] = "de"
-            };
+                sb.AppendLine("====================================================");
+                sb.AppendLine($"📄 Datei: {Path.GetFileName(file)}"); // Schönerer Header
+                sb.AppendLine("====================================================\n");
 
-            // Code erklären
-            var explain = await kernel.InvokeAsync<string>("CodeSkill", "ExplainCode", args);
-            sb.AppendLine("🧠 Erklärung:");
-            sb.AppendLine(explain + "\n");
+                var args = new KernelArguments
+                {
+                    ["path"] = file,
+                    ["lang"] = lang
+                };
 
-            // Probleme finden
-            var issues = await kernel.InvokeAsync<string>("CodeSkill", "FindIssues", args);
-            sb.AppendLine("⚠️ Probleme / TODOs:");
-            sb.AppendLine(issues + "\n");
+                try
+                {
+                    // Code erklären
+                    var explain = await kernel.InvokeAsync<string>("CodeSkill", "ExplainCode", args);
+                    sb.AppendLine("🧠 Erklärung:");
+                    sb.AppendLine((explain ?? "Keine Erklärung generiert.") + "\n");
+
+                    // Probleme finden
+                    var issues = await kernel.InvokeAsync<string>("CodeSkill", "FindIssues", args);
+                    sb.AppendLine("⚠️ Probleme / TODOs:");
+                    sb.AppendLine((issues ?? "Keine Probleme gefunden.") + "\n");
+                }
+                catch (KernelException ex)
+                {
+                    sb.AppendLine($"⚠️ Fehler beim Aufruf der Code-Analyse für {Path.GetFileName(file)}: {ex.Message}\n");
+                }
+            }
+
+            return sb.ToString();
         }
-
-        return sb.ToString();
+        catch (UnauthorizedAccessException)
+        {
+            return $"❌ Keine Berechtigung für den Zugriff auf den Ordner: {path}";
+        }
+        catch (Exception ex)
+        {
+            return $"❌ Fehler bei der Verzeichnisanalyse von '{path}': {ex.Message}";
+        }
     }
 }
