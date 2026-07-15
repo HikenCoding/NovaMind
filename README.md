@@ -1,5 +1,7 @@
 # 🧠 NovaMind - Loakler KI-Agent CLI (C# + Semantic Kernel + Ollama)
 
+![.NET Core CI](https://github.com/HikenCoding/NovaMind/actions/workflows/ci.yml/badge.svg)
+
 NovaMind ist ein modularer, erweiterbarer KI‑Agent, der Dateien liest, Code analysiert, PDFs zusammenfasst, Memory speichert, Pläne erstellt und mehr.
 Das Projekt basiert auf Semantic Kernel, Ollama und einem selbst entwickelten LLM‑Planner, der natürliche Sprache in ausführbare Schritte übersetzt.
 
