@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -20,94 +21,15 @@ public class AgentPlan
 
 public static class AgentPlanner
 {
-    
-    public static AgentPlan CreateSimplePlan(string input, string lang)
-{
-        var plan = new AgentPlan { OriginalRequest = input };
-        string inputLower = input.ToLower();
-        var file = ExtractFileNameFromInput(input);
-
-        // 🕵️‍♂️ FALLBACK 1: C#-Code-Analyse
-        if (inputLower.Contains("analysiere") && file != null && file.EndsWith(".cs"))
-        {
-            plan.Steps.Add(new AgentStep
-            {
-                Description = $"Erkläre den Code in {file}",
-                SkillName = "CodeSkill",
-                FunctionName = "ExplainCode",
-                Arguments = new() { ["path"] = file, ["lang"] = lang }
-            });
-
-            plan.Steps.Add(new AgentStep
-            {
-                Description = $"Finde Probleme im Code {file}",
-                SkillName = "CodeSkill",
-                FunctionName = "FindIssues",
-                Arguments = new() { ["path"] = file, ["lang"] = lang }
-            });
-
-            return plan;
-        }
-
-        // 🕵️‍♂️ FALLBACK 2: PDF-Zusammenfassung retten
-        if (file != null && file.EndsWith(".pdf"))
-        {
-            bool wantsSummary = inputLower.Contains("fasse") || inputLower.Contains("zusammen") || inputLower.Contains("summarize");
-            
-            plan.Steps.Add(new AgentStep
-            {
-                Description = wantsSummary ? $"Fasse das PDF-Dokument '{file}' zusammen" : $"Lese das PDF-Dokument '{file}'",
-                SkillName = "PdfSkill",
-                FunctionName = wantsSummary ? "SummarizePdf" : "ReadPdf",
-                Arguments = new() { ["path"] = file, ["lang"] = lang }
-            });
-
-            plan.Steps.Add(new AgentStep
-            {
-                Description = "Reflektiere das Gesamtergebnis",
-                SkillName = "ReflectSkill",
-                FunctionName = "Reflect",
-                Arguments = new() { ["input"] = "", ["lang"] = lang }
-            });
-
-            return plan;
-        }
-
-        // 🔥 BRANDNEU - FALLBACK 3: Normale Textdateien (.txt, .md, .json) einlesen retten!
-        if (file != null && (file.EndsWith(".txt") || file.EndsWith(".md") || file.EndsWith(".json")))
-        {
-            plan.Steps.Add(new AgentStep
-            {
-                Description = $"Lese den Inhalt der Datei '{file}'",
-                SkillName = "FileSkill",
-                FunctionName = "ReadFile",
-                Arguments = new() { ["path"] = file, ["lang"] = lang }
-            });
-
-            // Wenn der User es nicht explizit im Gedächtnis speichern will, hängen wir eine Reflexion an
-            if (!inputLower.Contains("speichere") && !inputLower.Contains("memory"))
-            {
-                plan.Steps.Add(new AgentStep
-                {
-                    Description = "Erkläre den Inhalt der Datei",
-                    SkillName = "ReflectSkill",
-                    FunctionName = "Reflect",
-                    Arguments = new() { ["input"] = "", ["lang"] = lang }
-                });
-            }
-
-            return plan;
-        }
-
-        return plan;
-    }
-
+    /// <summary>
+    /// Erstellt den Ausführungsplan über die LLM-Schnittstelle und wendet Auto-Fixes an.
+    /// </summary>
     public static async Task<AgentPlan> CreateLLMPlanAsync(
         string input,
         string lang,
         IChatCompletionService chat)
     {
-        string forcedSkill = DetectSkill(input);
+        var forcedSkill = DetectSkill(input);
         var systemPrompt = BuildSystemPrompt(forcedSkill);
 
         var chatHistory = new ChatHistory();
@@ -115,181 +37,216 @@ public static class AgentPlanner
         chatHistory.AddUserMessage($"Erstelle einen Plan für diese Anfrage:\n{input}");
 
         var response = await chat.GetChatMessageContentAsync(chatHistory);
-        // Rohen Tet vom LLM holen
-        string json = response.Content ?? "{}";
-        json = SanitizeJson(json);
+        var json = SanitizeJson(response.Content ?? "{}");
 
-        AgentPlan plan = new AgentPlan { OriginalRequest = input };
+        var plan = new AgentPlan { OriginalRequest = input };
 
-        try
+       try
         {
-            using var doc = JsonDocument.Parse(json);
-            var steps = doc.RootElement.GetProperty("steps");
-
-            foreach (var step in steps.EnumerateArray())
+            var rawSteps = ParseJsonToSteps(json);
+            foreach (var rawStep in rawSteps)
             {
-                // Sicheres Auslesen mit TryGetProperty statt GetProperty
-                string description = step.TryGetProperty("description", out var descProp) ? descProp.GetString() ?? "" : "";
-                string skillName = step.TryGetProperty("skill", out var skillProp) ? skillProp.GetString() ?? "" : "";
-                string functionName = step.TryGetProperty("function", out var funcProp) ? funcProp.GetString() ?? "" : "";
-
-                var agentStep = new AgentStep
+                var processedStep = ProcessAndFixStep(rawStep, input, forcedSkill, lang);
+                if (processedStep != null)
                 {
-                    Description = description,
-                    SkillName = skillName,
-                    FunctionName = functionName,
-                    Arguments = new()
-                };
-
-                // PDF: Pfad IMMER aus der Eingabe ableiten
-                if (forcedSkill == "PdfSkill")
-                {
-                    var file = ExtractFileNameFromInput(input);
-                    if (file != null)
-                    {
-                        Console.WriteLine($"[Planner] Erzwinge PDF-Pfad: {file}");
-                        agentStep.Arguments["path"] = file;
-                    }
+                    plan.Steps.Add(processedStep);
                 }
-
-                // ReflectSkill Absicherung
-                if (agentStep.SkillName == "ReflectSkill")
-                {
-                    agentStep.FunctionName = "Reflect";
-                    if (!agentStep.Arguments.ContainsKey("input"))
-                        agentStep.Arguments["input"] = agentStep.Description;
-                }
-
-                // PATCH: Beschreibung darf NIE Funktionsname sein
-                if (agentStep.FunctionName.Equals(agentStep.Description, StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine($"→ Auto-Fix: Beschreibung '{agentStep.Description}' fälschlich als Funktion erkannt. Setze auf ReadPdf.");
-                    agentStep.FunctionName = "ReadPdf";
-                    agentStep.SkillName = "PdfSkill";
-                }
-
-                // PDF erzwingen
-                if (forcedSkill == "PdfSkill" && agentStep.SkillName != "ReflectSkill")
-                {
-                    agentStep.SkillName = "PdfSkill";
-                    if (string.IsNullOrWhiteSpace(agentStep.FunctionName))
-                        agentStep.FunctionName = "ReadPdf";
-                }
-
-                if (string.IsNullOrWhiteSpace(agentStep.FunctionName))
-                {
-                    Console.WriteLine("→ Auto-Fix: Leerer Funktionsname → Step wird entfernt.");
-                    continue;
-                }
-
-                string fnLower = agentStep.FunctionName.ToLower();
-
-                if (FunctionAliases.TryGetValue(fnLower, out var alias))
-                {
-                    agentStep.SkillName = alias.skill;
-                    agentStep.FunctionName = alias.function;
-                }
-
-                else if (!KnownFunctions.ContainsKey(fnLower))
-                {
-                    string inputLower = input.ToLower();
-
-                    if (forcedSkill == "PdfSkill")
-                    {
-                        agentStep.SkillName = "PdfSkill";
-                        agentStep.FunctionName = (inputLower.Contains("fasse") || inputLower.Contains("zusammen") || inputLower.Contains("summarize")) 
-                            ? "SummarizePdf" 
-                            : "ReadPdf";
-                    }
-                    // Wenn der User eine Erklärung will und das LLM bei Folgeschritten (Schritt 2, 3...) halluziniert, nutzen wir ReflectSkill!
-                    else if ((inputLower.Contains("erkläre") || inputLower.Contains("erklär") || inputLower.Contains("explain") || 
-                              inputLower.Contains("summarize") || inputLower.Contains("zusammen") || inputLower.Contains("fasse")) && plan.Steps.Count > 0)
-                    {
-                        agentStep.SkillName = "ReflectSkill";
-                        agentStep.FunctionName = "Reflect";
-                    }
-                    else
-                    {
-                        var file = ExtractFileNameFromInput(input);
-                        if (file != null && file.EndsWith(".cs"))
-                        {
-                            agentStep.SkillName = "CodeSkill";
-                            agentStep.FunctionName = "ExplainCode";
-                        }
-                        else if (file != null && (file.EndsWith(".txt") || file.EndsWith(".json") || file.EndsWith(".md")))
-                        {
-                            agentStep.SkillName = "FileSkill";
-                            agentStep.FunctionName = "ReadFile";
-                        }
-                        else
-                        {
-                            agentStep.SkillName = "DirectorySkill";
-                            agentStep.FunctionName = "ListDirectory";
-                        }
-                    }
-                }
-
-                // Argumente sicher auslesen
-                if (step.TryGetProperty("arguments", out var argsElement) && argsElement.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (var arg in argsElement.EnumerateObject())
-                    {
-                        // GetString() gibt null zurück, wenn der Wert kein JSON-String ist (z.B. eine Zahl oder ein Objekt)
-                        // RawText ist sicherer, falls Llama mal Zahlen oder Booleans liefert
-                        string val = arg.Value.ValueKind == JsonValueKind.String 
-                            ? arg.Value.GetString() ?? "" 
-                            : arg.Value.GetRawText().Trim('"');
-                            
-                        agentStep.Arguments[arg.Name] = val;
-                    }
-                }
-
-                // und das LLM den "path" vergessen hat -> automatisch aus dem User-Input extrahieren!
-                if (!agentStep.Arguments.ContainsKey("path"))
-                {
-                    var file = ExtractFileNameFromInput(input);
-                    if (file != null)
-                    {
-                        Console.WriteLine($"[Planner] Auto-Fix: Injiziere fehlenden Pfad '{file}' für {agentStep.SkillName}.{agentStep.FunctionName}");
-                        agentStep.Arguments["path"] = file;
-                    }
-                }
-
-                // Auto-Pfad für den DirectorySkill, falls 'path' fehlt, leer ist oder 'current' heißt
-                if (agentStep.SkillName == "DirectorySkill")
-                {
-                    if (!agentStep.Arguments.ContainsKey("path") || string.IsNullOrWhiteSpace(agentStep.Arguments["path"]) || agentStep.Arguments["path"] == "current")
-                    {
-                        Console.WriteLine($"[Planner] Auto-Fix: Injiziere aktuellen Ordner '.' für {agentStep.SkillName}.{agentStep.FunctionName}");
-                        agentStep.Arguments["path"] = "."; // '.' steht in C# für das aktuelle Verzeichnis
-                    }
-                }
-
-                if (!agentStep.Arguments.ContainsKey("lang"))
-                    agentStep.Arguments["lang"] = lang;
-
-                plan.Steps.Add(agentStep);
             }
-       
+
+            if (plan.Steps.Count == 0)
+            {
+                Console.WriteLine("⚠️ LLM lieferte leeres oder unbrauchbares JSON. Trigger Fallback...");
+                plan = CreateSimplePlan(input, lang);
+            }
         }
         catch (Exception ex)
         {
-            // Gibt uns im Notfall den genauen Fehlergrund im Terminal aus!
             Console.WriteLine($"⚠️ Fehler beim Parsen des JSON-Plans: {ex.Message}");
             plan = CreateSimplePlan(input, lang);
         }
 
-        // 🔥 BOOSTER-ZONE: Hier unten steht er absolut sicher vor jedem Absturz!
-        // Wenn der User "memory" oder "speichere" verlangt, aber noch kein MemorySkill im Plan ist...
-        if ((input.ToLower().Contains("memory") || input.ToLower().Contains("speichere")) && 
-            !plan.Steps.Any(s => s.SkillName == "MemorySkill"))
+        ApplyMemoryBooster(plan, input);
+
+        return plan;
+    }
+
+    /// <summary>
+    /// Statischer Fallback-Planer bei Syntaxfehlern oder Offline-Betrieb.
+    /// </summary>
+    public static AgentPlan CreateSimplePlan(string input, string lang)
+    {
+        var plan = new AgentPlan { OriginalRequest = input };
+        var inputLower = input.ToLower();
+        var file = ExtractFileNameFromInput(input);
+
+        // Fallback 1: C#-Code-Analyse
+        if (inputLower.Contains("analysiere") && file != null && file.EndsWith(".cs"))
+        {
+            plan.Steps.Add(new AgentStep { Description = $"Erkläre den Code in {file}", SkillName = "CodeSkill", FunctionName = "ExplainCode", Arguments = new() { ["path"] = file, ["lang"] = lang } });
+            plan.Steps.Add(new AgentStep { Description = $"Finde Probleme im Code {file}", SkillName = "CodeSkill", FunctionName = "FindIssues", Arguments = new() { ["path"] = file, ["lang"] = lang } });
+            return plan;
+        }
+
+        // Fallback 2: PDF-Zusammenfassung retten
+        if (file != null && file.EndsWith(".pdf"))
+        {
+            var wantsSummary = inputLower.Contains("fasse") || inputLower.Contains("zusammen") || inputLower.Contains("summarize");
+            plan.Steps.Add(new AgentStep { Description = wantsSummary ? $"Fasse das PDF-Dokument '{file}' zusammen" : $"Lese das PDF-Dokument '{file}'", SkillName = "PdfSkill", FunctionName = wantsSummary ? "SummarizePdf" : "ReadPdf", Arguments = new() { ["path"] = file, ["lang"] = lang } });
+            plan.Steps.Add(new AgentStep { Description = "Reflektiere das Gesamtergebnis", SkillName = "ReflectSkill", FunctionName = "Reflect", Arguments = new() { ["input"] = "", ["lang"] = lang } });
+            return plan;
+        }
+
+        // Fallback 3: Standard-Textdateien (.txt, .md, .json)
+        if (file != null && (file.EndsWith(".txt") || file.EndsWith(".md") || file.EndsWith(".json")))
+        {
+            plan.Steps.Add(new AgentStep { Description = $"Lese den Inhalt der Datei '{file}'", SkillName = "FileSkill", FunctionName = "ReadFile", Arguments = new() { ["path"] = file, ["lang"] = lang } });
+            
+            if (!inputLower.Contains("speichere") && !inputLower.Contains("memory"))
+            {
+                plan.Steps.Add(new AgentStep { Description = "Erkläre den Inhalt der Datei", SkillName = "ReflectSkill", FunctionName = "Reflect", Arguments = new() { ["input"] = "", ["lang"] = lang } });
+            }
+            return plan;
+        }
+
+        return plan;
+    }
+
+    private static List<JsonElement> ParseJsonToSteps(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == JsonValueKind.Array
+            ? stepsProp.EnumerateArray().Select(el => el.Clone()).ToList() 
+            : new List<JsonElement>();
+    }
+
+    private static AgentStep? ProcessAndFixStep(JsonElement stepElement, string userInput, string forcedSkill, string lang)
+    {
+        var description = stepElement.TryGetProperty("description", out var descProp) ? descProp.GetString() ?? "" : "";
+        var skillName = stepElement.TryGetProperty("skill", out var skillProp) ? skillProp.GetString() ?? "" : "";
+        var functionName = stepElement.TryGetProperty("function", out var funcProp) ? funcProp.GetString() ?? "" : "";
+
+        var step = new AgentStep
+        {
+            Description = description,
+            SkillName = skillName,
+            FunctionName = functionName,
+            Arguments = new()
+        };
+
+        // Argumente-Mapping über System.Text.Json
+        if (stepElement.TryGetProperty("arguments", out var argsElement) && argsElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var arg in argsElement.EnumerateObject())
+            {
+                step.Arguments[arg.Name] = arg.Value.ValueKind == JsonValueKind.String 
+                    ? arg.Value.GetString() ?? "" 
+                    : arg.Value.GetRawText().Trim('"');
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(step.FunctionName))
+        {
+            Console.WriteLine("→ Auto-Fix: Leerer Funktionsname → Step wird entfernt.");
+            return null;
+        }
+
+        // Edge Case: Llama setzt fälschlicherweise Beschreibung als Funktionsname ein
+        if (step.FunctionName.Equals(step.Description, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"→ Auto-Fix: Beschreibung '{step.Description}' fälschlich als Funktion erkannt. Setze auf ReadPdf.");
+            step.FunctionName = "ReadPdf";
+            step.SkillName = "PdfSkill";
+        }
+
+        // PDF-Skill erzwingen falls detektiert
+        if (forcedSkill == "PdfSkill" && step.SkillName != "ReflectSkill")
+        {
+            step.SkillName = "PdfSkill";
+            if (string.IsNullOrWhiteSpace(step.FunctionName))
+                step.FunctionName = "ReadPdf";
+        }
+
+        // Alias-Mapping via PlannerConfig
+        var fnLower = step.FunctionName.ToLower();
+        if (PlannerConfig.FunctionAliases.TryGetValue(fnLower, out var alias))
+        {
+            step.SkillName = alias.skill;
+            step.FunctionName = alias.function;
+        }
+        else if (!PlannerConfig.KnownFunctions.ContainsKey(fnLower))
+        {
+            ResolveHallucinatedFunction(step, userInput, forcedSkill);
+        }
+
+        ApplyPathFixes(step, userInput);
+
+        if (!step.Arguments.ContainsKey("lang"))
+            step.Arguments["lang"] = lang;
+
+        return step;
+    }
+
+    private static void ResolveHallucinatedFunction(AgentStep step, string userInput, string forcedSkill)
+    {
+        var inputLower = userInput.ToLower();
+
+        if (forcedSkill == "PdfSkill")
+        {
+            step.SkillName = "PdfSkill";
+            step.FunctionName = inputLower.Contains("fasse") || inputLower.Contains("zusammen") || inputLower.Contains("summarize")
+                ? "SummarizePdf" 
+                : "ReadPdf";
+        }
+        else if (step.SkillName == "ReflectSkill" || 
+                 inputLower.Contains("erkläre") || inputLower.Contains("erklär") || inputLower.Contains("explain") || 
+                 inputLower.Contains("summarize") || inputLower.Contains("zusammen") || inputLower.Contains("fasse"))
+        {
+            step.SkillName = "ReflectSkill";
+            step.FunctionName = "Reflect";
+            step.Arguments["input"] = step.Arguments.TryGetValue("input", out var existingVal) ? existingVal : step.Description;
+        }
+        else
+        {
+            var file = ExtractFileNameFromInput(userInput);
+            (step.SkillName, step.FunctionName) = file switch
+            {
+                _ when file != null && file.EndsWith(".cs") => ("CodeSkill", "ExplainCode"),
+                _ when file != null && (file.EndsWith(".txt") || file.EndsWith(".json") || file.EndsWith(".md")) => ("FileSkill", "ReadFile"),
+                _ => ("DirectorySkill", "ListDirectory")
+            };
+        }
+    }
+
+    private static void ApplyPathFixes(AgentStep step, string userInput)
+    {
+        if (!step.Arguments.ContainsKey("path"))
+        {
+            var file = ExtractFileNameFromInput(userInput);
+            if (file != null)
+            {
+                Console.WriteLine($"[Planner] Auto-Fix: Injiziere fehlenden Pfad '{file}' für {step.SkillName}.{step.FunctionName}");
+                step.Arguments["path"] = file;
+            }
+        }
+
+        if (step.SkillName == "DirectorySkill" && (!step.Arguments.TryGetValue("path", out var path) || string.IsNullOrWhiteSpace(path) || path == "current"))
+        {
+            Console.WriteLine($"[Planner] Auto-Fix: Injiziere aktuellen Ordner '.' für {step.SkillName}.{step.FunctionName}");
+            step.Arguments["path"] = ".";
+        }
+    }
+
+    private static void ApplyMemoryBooster(AgentPlan plan, string userInput)
+    {
+        var inputLower = userInput.ToLower();
+        if ((inputLower.Contains("memory") || inputLower.Contains("speichere")) && !plan.Steps.Any(s => s.SkillName == "MemorySkill"))
         {
             Console.WriteLine("⚡ NovaMind-Power: Memory-Bedarf erkannt! Injiziere automatischen Speicher-Schritt...");
             
-            string category = "general";
-            if (input.ToLower().Contains("kategorie"))
+            var category = "general";
+            if (inputLower.Contains("kategorie"))
             {
-                var words = input.Split(' ');
+                var words = userInput.Split(' ');
                 for (int i = 0; i < words.Length - 1; i++)
                 {
                     if (words[i].ToLower().Contains("kategorie"))
@@ -305,74 +262,62 @@ public static class AgentPlanner
                 Description = $"Speichere das Ergebnis in der Kategorie '{category}'",
                 SkillName = "MemorySkill",
                 FunctionName = "Remember",
-                Arguments = new()
-                {
-                    ["input"] = $"{category}: " 
-                }
+                Arguments = new() { ["input"] = $"{category}: " }
             };
             
-            int reflectIdx = plan.Steps.FindIndex(s => s.SkillName == "ReflectSkill" || s.FunctionName == "Reflect");
+            var reflectIdx = plan.Steps.FindIndex(s => s.SkillName == "ReflectSkill" || s.FunctionName == "Reflect");
             if (reflectIdx >= 0)
-            {
                 plan.Steps.Insert(reflectIdx, memoryStep);
-            }
             else
-            {
                 plan.Steps.Add(memoryStep);
-            }
         }
-
-        return plan;
     }
 
+    /// <summary>
+    /// Extrahiert mittels LINQ den Dateipfad aus der Eingabe.
+    /// </summary>
     private static string? ExtractFileNameFromInput(string input)
     {
-        foreach (var p in input.Split(" ", StringSplitOptions.RemoveEmptyEntries))
-            if (p.Contains(".") && (p.EndsWith(".pdf") || p.EndsWith(".cs") || p.EndsWith(".txt") || p.EndsWith(".json") || p.EndsWith(".md")))
-                return p;
-
-        return null;
+        var allowedExtensions = new[] { ".pdf", ".cs", ".txt", ".json", ".md" };
+        return input.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault(word => word.Contains('.') && allowedExtensions.Any(ext => word.EndsWith(ext)));
     }
 
+    /// <summary>
+    /// Bereinigt das LLM-JSON unter Verwendung moderner Range-Operatoren.
+    /// </summary>
     private static string SanitizeJson(string raw)
     {
-        if (string.IsNullOrWhiteSpace(raw))
-            return "{}";
+        if (string.IsNullOrWhiteSpace(raw)) return "{}";
 
-        int start = raw.IndexOf('{');
-        int end = raw.LastIndexOf('}');
+        var start = raw.IndexOf('{');
+        var end = raw.LastIndexOf('}');
 
-        if (start < 0 || end < 0 || end <= start)
-            return "{}";
-
-        return raw.Substring(start, end - start + 1).Trim();
+        return start < 0 || end < 0 || end <= start 
+            ? "{}" 
+            : raw[start..(end + 1)].Trim(); // C# Range Operator (Span-artig & performant)
     }
 
+    /// <summary>
+    /// Deklarative Skill-Erkennung mittels C# Switch Expression.
+    /// </summary>
     private static string DetectSkill(string input)
     {
-        input = input.ToLower();
-
-        if (input.Contains(".pdf") || input.Contains("pdf"))
-            return "PdfSkill";
-
-        if (input.Contains(".cs") || input.Contains("code") || input.Contains("todo"))
-            return "CodeSkill";
-
-        if (input.Contains("ordner") || input.Contains("directory") || input.Contains("folder"))
-            return "DirectorySkill";
-
-        if (input.Contains("datei") || input.Contains("file"))
-            return "FileSkill";
-
-        if (input.Contains("memory") || input.Contains("merken"))
-            return "MemorySkill";
-
-        return "Auto";
+        var lower = input.ToLower();
+        return lower switch
+        {
+            _ when lower.Contains(".pdf") || lower.Contains("pdf") => "PdfSkill",
+            _ when lower.Contains(".cs") || lower.Contains("code") || lower.Contains("todo") => "CodeSkill",
+            _ when lower.Contains("ordner") || lower.Contains("directory") || lower.Contains("folder") => "DirectorySkill",
+            _ when lower.Contains("datei") || lower.Contains("file") => "FileSkill",
+            _ when lower.Contains("memory") || lower.Contains("merken") => "MemorySkill",
+            _ => "Auto"
+        };
     }
 
     private static string BuildSystemPrompt(string forcedSkill)
     {
-        string basePrompt = @"
+        var basePrompt = @"
 Du erzeugst IMMER gültiges JSON:
 {
   ""steps"": [
@@ -389,13 +334,8 @@ Kein '...' .
 Jeder Step MUSS eine Funktion haben.
 ";
 
-        if (forcedSkill != "Auto")
-        {
-            basePrompt += $@"
-Erzeuge NUR Schritte mit {forcedSkill}, außer der letzte Schritt (ReflectSkill).
-";
-        }
-
-        return basePrompt;
+        return forcedSkill != "Auto" 
+            ? basePrompt + $"\nErzeuge NUR Schritte mit {forcedSkill}, außer der letzte Schritt (ReflectSkill)." 
+            : basePrompt;
     }
 }

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 public static class PlannerConfig
 {
 
-    private static readonly Dictionary<string, (string skill, string function)> KnownFunctions = new()
+    public static readonly Dictionary<string, (string skill, string function)> KnownFunctions = new()
         {
             ["readfile"] = ("FileSkill", "ReadFile"),
             ["writefile"] = ("FileSkill", "WriteFile"),
@@ -30,7 +30,7 @@ public static class PlannerConfig
             ["analyzedirectory"] = ("DirectorySkill", "AnalyzeDirectory")
         };
 
-        private static readonly Dictionary<string, (string skill, string function)> FunctionAliases = new()
+        public static readonly Dictionary<string, (string skill, string function)> FunctionAliases = new()
         {
             ["extracttodos"] = ("CodeSkill", "FindIssues"),
             ["extractcomments"] = ("CodeSkill", "FindIssues"),
@@ -64,7 +64,7 @@ public static class PlannerConfig
             ["fassezusammen"] = ("PdfSkill", "SummarizePdf")
         };
 
-        private static readonly Dictionary<string, List<string>> ValidSkills = new()
+        public static readonly Dictionary<string, List<string>> ValidSkills = new()
         {
             ["CodeSkill"] = new() { "ExplainCode", "FindIssues", "RefactorCode", "ReadCode" },
             ["PdfSkill"] = new() { "ReadPdf", "SearchPdf", "SummarizePdf" },
