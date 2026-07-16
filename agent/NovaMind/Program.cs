@@ -1,62 +1,95 @@
+using System;
+using System.IO;
+using System.Text;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.Ollama;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.DependencyInjection;
 
+// Setup Kernel Builder
 var builder = Kernel.CreateBuilder();
 
-// Ollama LLM einbinden
+// Ollama LLM 
 builder.AddOllamaChatCompletion(
     modelId: "llama3:latest",
     endpoint: new Uri("http://127.0.0.1:11434")
 );
 
-// Skills laden
+// Standard-Plugins ohne Konstruktor-Abhängigkeiten laden
 builder.Plugins.AddFromType<HelpSkill>();
 builder.Plugins.AddFromType<FileSkill>();
 builder.Plugins.AddFromType<MemorySkill>();
 builder.Plugins.AddFromType<PdfSkill>();
-builder.Plugins.AddFromType<DirectorySkill>();
+builder.Plugins.AddFromType<DirectorySkill>(); // Nur einmal registrieren!
 
-
-
-// CodeSkill manuell registrieren (wegen Konstruktor)
-var sp = builder.Services.BuildServiceProvider();
-var codeChatService = sp.GetRequiredService<IChatCompletionService>();
-builder.Plugins.AddFromObject(new CodeSkill(codeChatService));
-
-// ReflectSkill ebenfalls manuell registrieren (wegen Konstruktor)
-builder.Plugins.AddFromObject(new ReflectSkill(codeChatService));
-
+// Kernel final zusammenbauen
 var kernel = builder.Build();
-builder.Plugins.AddFromType<DirectorySkill>();
 
-// Chat-Service holen
+// Chat-Service für spätere direkte LLM-Anfragen holen
 var chat = kernel.GetRequiredService<IChatCompletionService>();
 
-Console.WriteLine("NovaMind CLI gestartet. Schreib etwas:");
+// --- 2. DEPENDENCY INJECTION (Spezial-Skills registrieren) ---
+// Anstatt eines temporären Service-Providers holen wir den Chat-Service 
+// direkt aus dem fertigen Kernel und registrieren die Skills nachträglich!
+kernel.Plugins.AddFromObject(new CodeSkill(chat));
+kernel.Plugins.AddFromObject(new ReflectSkill(chat));
 
-// Gemeinsame Variablen außerhalb der Schleife deklarieren
+Console.WriteLine("🤖 NovaMind CLI gestartet. Schreib etwas (oder nutze /help):");
+
 string? result = null;
-string lang = "de"; // Standard auf DE gesetzt
+string lang = "de"; // Standard-Sprache: Deutsch
 
+// 3.CLI Loop
 while (true)
 {
-    Console.Write("NovaMind> ");
+    Console.Write("\nNovaMind> ");
     var input = Console.ReadLine();
 
-    if (input is null)
+    if (string.IsNullOrWhiteSpace(input))
         continue;
 
-    // Sprache bei jedem Input erkennen
+    // EXIT
+    if (input.Equals("exit", StringComparison.OrdinalIgnoreCase))
+        break;
+
+    // Sprache der aktuellen Eingabe erkennen
     lang = LanguageDetector.Detect(input);
 
+    try
+    {
+        // --- BEFEHLS-VERTEILER (Command Router) ---
+        if (input.StartsWith('/'))
+        {
+            await HandleCommandAsync(input);
+        }
+        else
+        {
+            // Standard-Verhalten: LLM direkt fragen
+            var history = new ChatHistory();
+            history.AddSystemMessage(LanguageDetector.GetSystemPrompt(lang));
+            history.AddUserMessage(input);
+
+            var response = await chat.GetChatMessageContentAsync(history);
+            Console.WriteLine(response.Content);
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"⚠️ Fehler bei der Verarbeitung: {ex.Message}");
+    }
+}
+
+// --- 4. HILFSMETHODE FÜR DIE CLI-BEFEHLE (Saubere Trennung) ---
+async Task HandleCommandAsync(string input)
+{
     // HELP
     if (input == "/help")
     {
-        var help = kernel.InvokeAsync<string>("HelpSkill", "ShowHelp");
-        Console.WriteLine(await help);
-        continue;
+        var help = await kernel.InvokeAsync<string>("HelpSkill", "ShowHelp");
+        Console.WriteLine(help);
+        return;
     }
 
     // READFILE
@@ -65,245 +98,161 @@ while (true)
         var path = input.Replace("/readfile ", "").Trim();
         result = await kernel.InvokeAsync<string>("FileSkill", "ReadFile", new() { ["path"] = path });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // WRITEFILE
     if (input.StartsWith("/writefile "))
     {
-        var parts = input.Split(" ", 3);
+        var parts = input.Split(' ', 3);
         if (parts.Length < 3)
         {
-            Console.WriteLine("Usage: /writefile <path> <text>");
-            continue;
+            Console.WriteLine("❌ Verwendung: /writefile <pfad> <text>");
+            return;
         }
-
-        var path = parts[1];
-        var content = parts[2];
-
-        result = await kernel.InvokeAsync<string>(
-            "FileSkill",
-            "WriteFile",
-            new() { ["path"] = path, ["content"] = content }
-        );
-
+        result = await kernel.InvokeAsync<string>("FileSkill", "WriteFile", new() { ["path"] = parts[1], ["content"] = parts[2] });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
-    // LS
+    // LS (Dateien auflisten)
     if (input.StartsWith("/ls"))
     {
-        var parts = input.Split(" ", 2);
+        var parts = input.Split(' ', 2);
         var path = parts.Length > 1 ? parts[1] : ".";
-
-        result = await kernel.InvokeAsync<string>(
-            "FileSkill",
-            "ListFiles",
-            new() { ["path"] = path }
-        );
-
+        result = await kernel.InvokeAsync<string>("FileSkill", "ListFiles", new() { ["path"] = path });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // DELETEFILE
     if (input.StartsWith("/deletefile "))
     {
-        var parts = input.Split(" ", 2);
-        if (parts.Length < 2)
-        {
-            Console.WriteLine("Usage: /deletefile <path>");
-            continue;
-        }
-
-        var path = parts[1];
-
-        result = await kernel.InvokeAsync<string>(
-            "FileSkill",
-            "DeleteFile",
-            new() { ["path"] = path }
-        );
-
+        var path = input.Replace("/deletefile ", "").Trim();
+        result = await kernel.InvokeAsync<string>("FileSkill", "DeleteFile", new() { ["path"] = path });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // REMEMBER
     if (input.StartsWith("/remember "))
     {
-        var parts = input.Split(" ", 2);
-        var text = parts[1];
-
-        result = await kernel.InvokeAsync<string>(
-            "MemorySkill", "Remember",
-            new() { ["input"] = text }
-        );
-
+        var text = input.Replace("/remember ", "").Trim();
+        result = await kernel.InvokeAsync<string>("MemorySkill", "Remember", new() { ["input"] = text });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
-    // MEMORY
+    // SHOW MEMORY
     if (input.StartsWith("/memory"))
     {
-        var parts = input.Split(" ", 2);
+        var parts = input.Split(' ', 2);
         string? category = parts.Length > 1 ? parts[1] : null;
-
-        result = await kernel.InvokeAsync<string>(
-            "MemorySkill", "ShowMemory",
-            new() { ["category"] = category }
-        );
-
+        result = await kernel.InvokeAsync<string>("MemorySkill", "ShowMemory", new() { ["category"] = category });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // FORGET
     if (input.StartsWith("/forget "))
     {
-        var parts = input.Split(" ", 2);
-        var text = parts[1];
-
-        result = await kernel.InvokeAsync<string>(
-            "MemorySkill", "Forget",
-            new() { ["input"] = text }
-        );
-
+        var text = input.Replace("/forget ", "").Trim();
+        result = await kernel.InvokeAsync<string>("MemorySkill", "Forget", new() { ["input"] = text });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // SEARCH MEMORY
     if (input.StartsWith("/searchmemory "))
     {
-        var parts = input.Split(" ", 2);
-        var text = parts[1];
-
-        result = await kernel.InvokeAsync<string>(
-            "MemorySkill", "SearchMemory",
-            new() { ["text"] = text }
-        );
-
+        var text = input.Replace("/searchmemory ", "").Trim();
+        result = await kernel.InvokeAsync<string>("MemorySkill", "SearchMemory", new() { ["text"] = text });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // PDF READ
     if (input.StartsWith("/pdf read "))
     {
-        var path = input.Replace("/pdf read ", "");
-
-        result = await kernel.InvokeAsync<string>(
-            "PdfSkill", "ReadPdf",
-            new() { ["path"] = path }
-        );
-
+        var path = input.Replace("/pdf read ", "").Trim();
+        result = await kernel.InvokeAsync<string>("PdfSkill", "ReadPdf", new() { ["path"] = path });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // PDF SEARCH
     if (input.StartsWith("/pdf search "))
     {
-        var parts = input.Split(" ", 4);
-        var path = parts[2];
-        var text = parts[3];
-
-        result = await kernel.InvokeAsync<string>(
-            "PdfSkill", "SearchPdf",
-            new() { ["path"] = path, ["search"] = text }
-        );
-
+        var parts = input.Split(' ', 4);
+        if (parts.Length < 4)
+        {
+            Console.WriteLine("❌ Verwendung: /pdf search <pfad> <suchbegriff>");
+            return;
+        }
+        result = await kernel.InvokeAsync<string>("PdfSkill", "SearchPdf", new() { ["path"] = parts[2], ["search"] = parts[3] });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
-    //PDF SUMMARY
+    // PDF SUMMARY
     if (input.StartsWith("/pdf summary "))
     {
-        var path = input.Replace("/pdf summary ", "");
-
-        result = await kernel.InvokeAsync<string>(
-            "PdfSkill", "SummarizePdf",
-            new() { ["path"] = path, ["kernel"] = kernel }
-        );
-
+        var path = input.Replace("/pdf summary ", "").Trim();
+        result = await kernel.InvokeAsync<string>("PdfSkill", "SummarizePdf", new() { ["path"] = path, ["kernel"] = kernel });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // CODE READ
     if (input.StartsWith("/code read "))
     {
         var path = input.Replace("/code read ", "").Trim();
-
-        result = await kernel.InvokeAsync<string>(
-            "CodeSkill", "ReadCode",
-            new() { ["path"] = path }
-        );
-
+        result = await kernel.InvokeAsync<string>("CodeSkill", "ReadCode", new() { ["path"] = path });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // CODE EXPLAIN
     if (input.StartsWith("/code explain "))
     {
         var path = input.Replace("/code explain ", "").Trim();
-
-        result = await kernel.InvokeAsync<string>(
-            "CodeSkill", "ExplainCode",
-            new() { ["path"] = path, ["lang"] = lang }
-        );
-
+        result = await kernel.InvokeAsync<string>("CodeSkill", "ExplainCode", new() { ["path"] = path, ["lang"] = lang });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // CODE ISSUES
     if (input.StartsWith("/code issues "))
     {
         var path = input.Replace("/code issues ", "").Trim();
-
-        result = await kernel.InvokeAsync<string>(
-            "CodeSkill", "FindIssues",
-            new() { ["path"] = path, ["lang"] = lang }
-        );
-
+        result = await kernel.InvokeAsync<string>("CodeSkill", "FindIssues", new() { ["path"] = path, ["lang"] = lang });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
     // CODE REFACTOR
     if (input.StartsWith("/code refactor "))
     {
         var path = input.Replace("/code refactor ", "").Trim();
-
-        result = await kernel.InvokeAsync<string>(
-            "CodeSkill", "RefactorCode",
-            new() { ["path"] = path, ["lang"] = lang }
-        );
-
+        result = await kernel.InvokeAsync<string>("CodeSkill", "RefactorCode", new() { ["path"] = path, ["lang"] = lang });
         Console.WriteLine(result);
-        continue;
+        return;
     }
 
-    // agent 
+    // AGENT (Planer ausführen)
     if (input.StartsWith("/agent "))
     {
-        string combinedOutput = "";
         var request = input.Replace("/agent ", "").Trim();
+        var combinedOutput = "";
 
         var plan = await AgentPlanner.CreateLLMPlanAsync(request, lang, chat);
 
         if (plan.Steps.Count == 0)
         {
-            //Test-Ausgabe 1: 
-            Console.WriteLine("⚠️ LLM-Plan war leer. Versuche SimplePlan...");
+            Console.WriteLine("⚠️ LLM-Plan war leer. Nutze SimplePlan...");
             plan = AgentPlanner.CreateSimplePlan(request, lang);
         }
-        //TEST-Ausgabe 2:
+
         Console.WriteLine($"📊 Anzahl der Schritte im Plan: {plan.Steps.Count}");
 
         foreach (var step in plan.Steps)
@@ -312,74 +261,41 @@ while (true)
 
             if (step.SkillName == "MemorySkill" && step.FunctionName == "Remember")
             {
-                if (!combinedOutput.Contains(":") && step.Arguments.ContainsKey("input"))
-                    {
-                        // Wir holen uns die Kategorie aus der Description oder nutzen "dateien" als Fallback
-                        string cat = step.Description.Contains("'") 
-                            ? step.Description.Split('\'')[1] 
-                            : "dateien";
-                            
-                        step.Arguments["input"] = $"{cat}: {combinedOutput}";
-                    }
+                if (!combinedOutput.Contains(':') && step.Arguments.ContainsKey("input"))
+                {
+                    string cat = step.Description.Contains('\'') 
+                        ? step.Description.Split('\'')[1] 
+                        : "dateien";
+                        
+                    step.Arguments["input"] = $"{cat}: {combinedOutput}";
+                }
             }
 
-            // Reflect-Step bekommt das gesammelte Ergebnis
             if (step.FunctionName == "Reflect")
             {
                 step.Arguments["input"] = combinedOutput;
             }
 
-            // Dictionary → KernelArguments
             var agentArgs = new KernelArguments();
             foreach (var arg in step.Arguments)
             {
                 agentArgs[arg.Key] = arg.Value;
             }
 
-            // HIER EINFÜGEN: Den aktuellen Kernel injizieren, damit Skills (wie PdfSkill) ihn nutzen können
+            // Aktuellen Kernel injizieren
             agentArgs["kernel"] = kernel; 
 
-            // Skill-Funktion holen
             var function = kernel.Plugins[step.SkillName][step.FunctionName];
-
-            // Ausführen
             result = await kernel.InvokeAsync<string>(function, agentArgs);
-
-            // Ausgabe
             Console.WriteLine(result);
 
-            // Ergebnis sammeln (damit der nächste Schritt darauf zugreifen kann)
             if (!string.IsNullOrWhiteSpace(result))
             {
                 combinedOutput += result + "\n\n";
             }
         }
-
-        continue;
+        return;
     }
 
-
-    // EXIT
-    if (input.ToLower() == "exit")
-        break;
-
-    if (string.IsNullOrWhiteSpace(input))
-        continue;
-
-
-    // Chat-History erstellen
-    var history = new ChatHistory();
-
-    // Systemprompt dynamisch setzen
-    history.AddSystemMessage(LanguageDetector.GetSystemPrompt(lang));
-
-    // User-Message hinzufügen
-    history.AddUserMessage(input);
-
-    // LLM aufrufen
-    var response = await chat.GetChatMessageContentAsync(history);
-
-    // Ausgabe
-    result = response.Content;
-    Console.WriteLine(result);
+    Console.WriteLine("⚠️ Unbekannter Befehl. Nutze /help für eine Liste aller Befehle.");
 }
