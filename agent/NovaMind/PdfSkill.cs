@@ -1,102 +1,103 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
-using System.Text;
 
 public class PdfSkill
 {
-    // 1) PDF lesen
+    // Zentrale Hilfsmethode zur Fehlerbehandlung (Verhindert doppelten Code in den SK-Funktionen)
+    private string GetPdfTextOrError(string path, out string? text)
+    {
+        text = null;
+        try
+        {
+            // TOCTOU-Schutz: Wir versuchen direkt zu lesen, fehlende Dateien fangen wir im Catch ab
+            text = ExtractText(path);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return "⚠️ Die PDF-Datei enthält keinen lesbaren Text.";
+            }
+            return string.Empty; // Kein Fehler gefunden
+        }
+        catch (FileNotFoundException)
+        {
+            return $"❌ Datei nicht gefunden: {path}";
+        }
+        catch (Exception ex)
+        {
+            return $"❌ Fehler beim Lesen der PDF: {ex.Message}";
+        }
+    }
+
     [KernelFunction]
     public string ReadPdf(string path)
     {
         Console.WriteLine($"[PdfSkill] ReadPdf wurde mit path = '{path}' aufgerufen.");
         
-        if (!File.Exists(path))
-            return $"❌ File not found: {path}";
-
-        try
-        {
-            return ExtractText(path);
-        }
-        catch (Exception ex)
-        {
-            return $"❌ Error reading PDF: {ex.Message}";
-        }
+        var error = GetPdfTextOrError(path, out var text);
+        return string.IsNullOrEmpty(error) ? text! : error;
     }
 
-    // 2) PDF durchsuchen
     [KernelFunction]
     public string SearchPdf(string path, string search)
     {
-        if (!File.Exists(path))
-            return $"❌ File not found: {path}";
-
         if (string.IsNullOrWhiteSpace(search))
-            return "⚠️ No search term provided.";
+            return "⚠️ Kein Suchbegriff angegeben.";
 
-        string text;
+        var error = GetPdfTextOrError(path, out var text);
+        if (!string.IsNullOrEmpty(error))
+            return error;
 
-        try
+        // Zeilenweise Suche optimiert durchführen
+        var lines = text!.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        var sb = new StringBuilder();
+        var matchCount = 0;
+
+        foreach (var line in lines)
         {
-            text = ExtractText(path);
+            if (line.Contains(search, StringComparison.OrdinalIgnoreCase))
+            {
+                sb.AppendLine(line.Trim());
+                matchCount++;
+            }
         }
-        catch (Exception ex)
-        {
-            return $"❌ Error reading PDF: {ex.Message}";
-        }
 
-        var matches = text
-            .Split('\n')
-            .Where(line => line.Contains(search, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        if (matchCount == 0)
+            return $"🔍 Keine Treffer für den Begriff '{search}' gefunden.";
 
-        if (matches.Count == 0)
-            return $"🔍 No matches found for '{search}'.";
-
-        return "📄 Matches:\n" + string.Join("\n", matches);
+        return $"📄 Gefundene Übereinstimmungen ({matchCount}):\n{sb}";
     }
 
-    // 3) PDF zusammenfassen (LLM)
     [KernelFunction]
     public async Task<string> SummarizePdf(string path, Kernel kernel)
     {
-        if (!File.Exists(path))
-            return $"❌ File not found: {path}";
-
-        string text;
-        try
-        {
-            text = ExtractText(path);
-        }
-        catch (Exception ex)
-        {
-            return $"❌ Error reading PDF: {ex.Message}";
-        }
-
-        if (string.IsNullOrWhiteSpace(text))
-            return "⚠️ PDF contains no readable text.";
+        var error = GetPdfTextOrError(path, out var text);
+        if (!string.IsNullOrEmpty(error))
+            return error;
 
         var chat = kernel.GetRequiredService<IChatCompletionService>();
         var history = new ChatHistory();
 
-        var lang = LanguageDetector.Detect(text);
+        // Sprache erkennen (Nutzt den vorhandenen LanguageDetector deines Projekts)
+        var lang = LanguageDetector.Detect(text!);
 
-        // 🔥 PROMPT-TUNING: Dem LLM unmissverständlich klar machen, dass der Text da ist!
-        history.AddSystemMessage(
-            lang == "German"
+        // System-Prompt je nach Sprache dynamisch anpassen
+        var systemPrompt = lang == "German"
             ? "Du bist NovaMind. Dir wird der bereits extrahierte Text aus einer PDF-Datei übergeben. Fasse diesen Text klar, präzise und strukturiert auf Deutsch zusammen. Behaupte nicht, dass du keinen Zugriff auf die Datei hast, denn der Text liegt dir unten vollständig vor!"
-            : "You are NovaMind. You are provided with the pre-extracted text from a PDF file. Summarize this text clearly and concisely in English. Do not claim you cannot access the file, as the text is provided directly below!"
-        );
+            : "You are NovaMind. You are provided with the pre-extracted text from a PDF file. Summarize this text clearly and concisely in English. Do not claim you cannot access the file, as the text is provided directly below!";
 
+        history.AddSystemMessage(systemPrompt);
         history.AddUserMessage($"Hier ist der extrahierte PDF-Inhalt zur Zusammenfassung:\n\n{text}");
 
         var response = await chat.GetChatMessageContentAsync(history);
-
-        return response.Content ?? "⚠️ No summary generated.";
+        return response.Content ?? "⚠️ Es konnte keine Zusammenfassung generiert werden.";
     }
 
-    // Hilfsfunktion: PDF‑Text extrahieren
+    // Interne Hilfsfunktion: Liest die PDF Seite für Seite aus
     private string ExtractText(string path)
     {
         var result = new StringBuilder();
