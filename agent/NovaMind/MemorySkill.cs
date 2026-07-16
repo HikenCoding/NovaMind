@@ -1,199 +1,282 @@
-using Microsoft.SemanticKernel;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Text.Json;
-
+using Microsoft.SemanticKernel;
 
 public class MemorySkill
 {
-    //Define datapath
     private static readonly string MemoryFilePath = "memory.json";
+    
+    // Thread-Sicherheit: Verhindert Abstürze bei gleichzeitigen Lese- und Schreibzugriffen
+    private static readonly object LockObject = new();
+    
+    // Struktur: Erste Ebene = Kategorie, Zweite Ebene = Key -> Value
+    private static Dictionary<string, Dictionary<string, string>> _memory = new(StringComparer.OrdinalIgnoreCase);
 
-    //Constructor to load data
     public MemorySkill()
     {
         LoadMemory();
     }
 
-    private void SaveMemory()
+    private static void SaveMemory()
     {
-        var json = JsonSerializer.Serialize(_memory, new JsonSerializerOptions
+        lock (LockObject) // Absichern vor Multithreading-Kollisionen
         {
-            WriteIndented = true
-        });
-
-        File.WriteAllText(MemoryFilePath, json);
+            try
+            {
+                var json = JsonSerializer.Serialize(_memory, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+                File.WriteAllText(MemoryFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Fehler beim Speichern des Gedächtnisses: {ex.Message}");
+            }
+        }
     }
 
-
-    private void LoadMemory()
+    private static void LoadMemory()
     {
-        if (!File.Exists(MemoryFilePath))
-            return;
+        lock (LockObject)
+        {
+            try
+            {
+                if (!File.Exists(MemoryFilePath))
+                    return;
 
-        var json = File.ReadAllText(MemoryFilePath);
+                var json = File.ReadAllText(MemoryFilePath);
+                var data = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
 
-        var data = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
-
-        if (data != null)
-            _memory = data;
+                if (data != null)
+                {
+                    // Case-insensitive Dictionary für fehlerfreie Suchen erstellen
+                    _memory = new Dictionary<string, Dictionary<string, string>>(data, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            catch (JsonException)
+            {
+                // Falls die JSON-Datei beschädigt ist, Backup erstellen und leer starten
+                Console.WriteLine("⚠️ Gedächtnisdatei beschädigt. Erstelle leeres Gedächtnis.");
+                try
+                {
+                    if (File.Exists(MemoryFilePath))
+                        File.Move(MemoryFilePath, $"{MemoryFilePath}.bak", overwrite: true);
+                }
+                catch { /* ignoriert */ }
+                
+                _memory = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Fehler beim Laden des Gedächtnisses: {ex.Message}");
+            }
+        }
     }
-
-
-    //first structure : Kategorie
-    //second structure: Key->Value
-    private static Dictionary<string, Dictionary<string, string>> _memory 
-        = new();
 
     [KernelFunction]
     public string Remember(string input)
     {
-        // Format 1: category: value
-        // Format 2: key=value (default category: general)
+        if (string.IsNullOrWhiteSpace(input))
+            return "❌ Kein Inhalt zum Merken übergeben.";
 
-        if (input.Contains(":"))
+        lock (LockObject)
         {
-            var parts = input.Split(":", 2);
-            var category = parts[0].Trim();
-            var value = parts[1].Trim();
+            // Format 1: Kategorie: Wert
+            if (input.Contains(':'))
+            {
+                var parts = input.Split(':', 2);
+                var category = parts[0].Trim();
+                var value = parts[1].Trim();
 
-            if (!_memory.ContainsKey(category))
-                _memory[category] = new();
+                if (!_memory.TryGetValue(category, out var catDict))
+                {
+                    catDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    _memory[category] = catDict;
+                }
 
-            var key = "item" + (_memory[category].Count + 1);
-            _memory[category][key] = value;
-            SaveMemory();
-            return $"Saved under category '{category}': {value}";
+                var key = $"item{catDict.Count + 1}";
+                catDict[key] = value;
+                
+                SaveMemory();
+                return $"💾 Unter Kategorie '{category}' gemerkt: {value}";
+            }
+
+            // Format 2: Schlüssel=Wert (Standard-Kategorie: general)
+            if (input.Contains('='))
+            {
+                var parts = input.Split('=', 2);
+                var key = parts[0].Trim();
+                var value = parts[1].Trim();
+
+                if (!_memory.TryGetValue("general", out var generalDict))
+                {
+                    generalDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    _memory["general"] = generalDict;
+                }
+
+                generalDict[key] = value;
+
+                SaveMemory();
+                return $"💾 Schlüssel-Wert gemerkt: {key} = {value}";
+            }
+
+            return "❌ Ungültiges Format. Nutze 'Kategorie: Text' oder 'Schlüssel=Wert'.";
         }
-
-        if (input.Contains("="))
-        {
-            var parts = input.Split("=", 2);
-            var key = parts[0].Trim();
-            var value = parts[1].Trim();
-
-            if (!_memory.ContainsKey("general"))
-                _memory["general"] = new();
-
-            _memory["general"][key] = value;
-
-            SaveMemory();
-            return $"Saved key-value: {key} = {value}";
-        }
-        
-        return "Invalid format. Use 'category: text' or 'key=value'.";
     }
 
     [KernelFunction]
     public string ShowMemory(string? category = null)
     {
-        if (_memory.Count == 0)
-            return "Memory is empty.";
-
-        if (!string.IsNullOrEmpty(category))
+        lock (LockObject)
         {
-            if (!_memory.ContainsKey(category))
-                return $"No entries in category '{category}'.";
+            if (_memory.Count == 0)
+                return "📭 Das Gedächtnis ist leer.";
 
-            var result = $"Memory in category '{category}':\n";
-            foreach (var kv in _memory[category])
-                result += $"- {kv.Key}: {kv.Value}\n";
+            var sb = new StringBuilder();
 
-            return result;
+            // Bestimmte Kategorie anzeigen
+            if (!string.IsNullOrEmpty(category))
+            {
+                if (!_memory.TryGetValue(category, out var catDict) || catDict.Count == 0)
+                    return $"🔍 Keine Einträge in der Kategorie '{category}' gefunden.";
+
+                sb.AppendLine($"🧠 Gedächtnis in Kategorie '{category}':");
+                foreach (var kv in catDict)
+                {
+                    sb.AppendLine($"- {kv.Key}: {kv.Value}");
+                }
+                return sb.ToString();
+            }
+
+            // Gesamtes Gedächtnis (alle Kategorien) anzeigen
+            sb.AppendLine("🧠 Gesamtes Gedächtnis:");
+            foreach (var cat in _memory)
+            {
+                sb.AppendLine($"\n[{cat.Key}]");
+                foreach (var kv in cat.Value)
+                {
+                    sb.AppendLine($"- {kv.Key}: {kv.Value}");
+                }
+            }
+
+            return sb.ToString();
         }
-
-        // Show all
-        var output = "All memory:\n";
-        foreach (var cat in _memory)
-        {
-            output += $"\n[{cat.Key}]\n";
-            foreach (var kv in cat.Value)
-                output += $"- {kv.Key}: {kv.Value}\n";
-        }
-        
-        return output;
     }
 
     [KernelFunction]
-public string Forget(string input)
-{
-    if (input == "*")
+    public string Forget(string input)
     {
-        _memory.Clear();
-        return "Memory cleared.";
-    }
+        if (string.IsNullOrWhiteSpace(input))
+            return "❌ Kein Suchbegriff zum Vergessen angegeben.";
 
-    // Format: category: value
-    if (input.Contains(":"))
-    {
-        var parts = input.Split(":", 2);
-        var category = parts[0].Trim();
-        var value = parts[1].Trim();
-
-        if (!_memory.ContainsKey(category))
-            return $"Category '{category}' not found.";
-
-        var entry = _memory[category]
-            .FirstOrDefault(kv => kv.Value == value);
-
-        if (entry.Key == null)
-            return $"Entry not found in '{category}'.";
-
-        _memory[category].Remove(entry.Key);
-        SaveMemory();
-        return $"Removed from '{category}': {value}";
-
-    }
-
-    // Format: key=value
-    if (input.Contains("="))
-    {
-        var parts = input.Split("=", 2);
-        var key = parts[0].Trim();
-
-        if (!_memory.ContainsKey("general"))
-            return "No general memory found.";
-
-        if (_memory["general"].Remove(key))
+        lock (LockObject)
         {
-            SaveMemory();
-            return $"Removed key '{key}'.";
-        }
-        return $"Key '{key}' not found.";
-    }
-
-    // NEW: Format: key (without =)
-    if (_memory.ContainsKey("general") && _memory["general"].ContainsKey(input))
-    {
-        _memory["general"].Remove(input);
-        SaveMemory();
-        return $"Removed key '{input}'.";
-    }
-
-    return "Invalid format.";
-}
-
-
-[KernelFunction]
-public string SearchMemory(string text)
-{
-    var results = new List<string>();
-
-    foreach (var category in _memory)
-    {
-        foreach (var kv in category.Value)
-        {
-            if (kv.Key.Contains(text, StringComparison.OrdinalIgnoreCase) ||
-                kv.Value.Contains(text, StringComparison.OrdinalIgnoreCase))
+            // Komplettes Gedächtnis löschen bei '*'
+            if (input == "*")
             {
-                results.Add($"[{category.Key}] {kv.Key}: {kv.Value}");
+                _memory.Clear();
+                SaveMemory();
+                return "🗑️ Komplettes Gedächtnis gelöscht.";
             }
+
+            // Format: Kategorie: Wert
+            if (input.Contains(':'))
+            {
+                var parts = input.Split(':', 2);
+                var category = parts[0].Trim();
+                var value = parts[1].Trim();
+
+                if (!_memory.TryGetValue(category, out var catDict))
+                    return $"🔍 Kategorie '{category}' nicht gefunden.";
+
+                var entry = catDict.FirstOrDefault(kv => kv.Value.Equals(value, StringComparison.OrdinalIgnoreCase));
+
+                if (entry.Key == null)
+                    return $"🔍 Eintrag '{value}' in Kategorie '{category}' nicht gefunden.";
+
+                catDict.Remove(entry.Key);
+                
+                // Leere Kategorien direkt aufräumen
+                if (catDict.Count == 0)
+                    _memory.Remove(category);
+
+                SaveMemory();
+                return $"🗑️ Aus '{category}' gelöscht: {value}";
+            }
+
+            // Format: Schlüssel=Wert (Löscht einen Schlüssel aus general)
+            if (input.Contains('='))
+            {
+                var parts = input.Split('=', 2);
+                var key = parts[0].Trim();
+
+                if (!_memory.TryGetValue("general", out var generalDict))
+                    return "🔍 Keine Einträge unter 'general' gefunden.";
+
+                if (generalDict.Remove(key))
+                {
+                    if (generalDict.Count == 0)
+                        _memory.Remove("general");
+
+                    SaveMemory();
+                    return $"🗑️ Schlüssel '{key}' gelöscht.";
+                }
+                return $"🔍 Schlüssel '{key}' nicht gefunden.";
+            }
+
+            // Format: Nur der Schlüssel-Name (Löscht direkt aus general)
+            if (_memory.TryGetValue("general", out var genDict) && genDict.Remove(input))
+            {
+                if (genDict.Count == 0)
+                    _memory.Remove("general");
+
+                SaveMemory();
+                return $"🗑️ Schlüssel '{input}' gelöscht.";
+            }
+
+            return "❌ Ungültiges Format zum Löschen.";
         }
     }
 
-    if (results.Count == 0)
-        return $"No memory entries found containing '{text}'.";
+    [KernelFunction]
+    public string SearchMemory(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return "❌ Kein Suchbegriff übergeben.";
 
-    return "Search results:\n" + string.Join("\n", results);
-}
+        lock (LockObject)
+        {
+            var results = new List<string>();
 
+            // Durchsuche alle Kategorien und Werte
+            foreach (var category in _memory)
+            {
+                foreach (var kv in category.Value)
+                {
+                    if (kv.Key.Contains(text, StringComparison.OrdinalIgnoreCase) ||
+                        kv.Value.Contains(text, StringComparison.OrdinalIgnoreCase))
+                    {
+                        results.Add($"[{category.Key}] {kv.Key}: {kv.Value}");
+                    }
+                }
+            }
 
+            if (results.Count == 0)
+                return $"🔍 Keine Gedächtniseinträge gefunden, die '{text}' enthalten.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("🔍 Suchergebnisse im Gedächtnis:");
+            foreach (var result in results)
+            {
+                sb.AppendLine(result);
+            }
+
+            return sb.ToString();
+        }
+    }
 }
