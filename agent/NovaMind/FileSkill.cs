@@ -3,140 +3,93 @@ using System.IO;
 using System.Text;
 using Microsoft.SemanticKernel;
 
-/// <summary>
-/// Skill für grundlegende Dateioperationen wie Lesen, Schreiben, Auflisten und Löschen.
-/// </summary>
 public class FileSkill
 {
-    /// <summary>
-    /// Liest den gesamten Inhalt einer Datei sicher ein.
-    /// </summary>
     [KernelFunction]
     public string ReadFile(string path)
     {
         try
         {
+            // Wir lesen direkt. Falls die Datei fehlt oder gesperrt ist,
+            // fängt das catch-Block den Fehler sofort sicher ab.
             return File.ReadAllText(path);
         }
         catch (FileNotFoundException)
         {
             return $"❌ Datei nicht gefunden: {path}";
         }
-        catch (UnauthorizedAccessException)
-        {
-            return $"❌ Keine Berechtigung zum Lesen der Datei: {path}";
-        }
         catch (Exception ex)
         {
-            return $"❌ Fehler beim Lesen der Datei '{path}': {ex.Message}";
+            return $"❌ Fehler beim Lesen: {ex.Message}";
         }
     }
 
-    /// <summary>
-    /// Schreibt oder überschreibt eine Datei mit dem angegebenen Inhalt.
-    /// </summary>
     [KernelFunction]
     public string WriteFile(string path, string content)
     {
         try
         {
-            // Erstellt automatisch den Ordner-Pfad, falls dieser noch nicht existiert
-            var directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
             File.WriteAllText(path, content);
             return $"💾 Datei erfolgreich geschrieben: {path}";
         }
-        catch (UnauthorizedAccessException)
-        {
-            return $"❌ Keine Berechtigung zum Schreiben in die Datei: {path}";
-        }
         catch (Exception ex)
         {
-            return $"❌ Fehler beim Schreiben der Datei '{path}': {ex.Message}";
+            return $"❌ Fehler beim Schreiben: {ex.Message}";
         }
     }
 
-    /// <summary>
-    /// Listet alle Dateien und Ordner auf der obersten Ebene eines Verzeichnisses auf.
-    /// </summary>
     [KernelFunction]
     public string ListFiles(string path)
     {
         try
         {
-            var fullPath = Path.GetFullPath(path);
+            // Verzeichnisse abrufen
+            var files = Directory.GetFiles(path);
+            var dirs = Directory.GetDirectories(path);
 
-            if (!Directory.Exists(fullPath))
-            {
-                return $"❌ Verzeichnis nicht gefunden: {path}";
-            }
-
-            var dirs = Directory.GetDirectories(fullPath);
-            var files = Directory.GetFiles(fullPath);
-
-            // 🚀 Verwende StringBuilder für maximale Performance im Arbeitsspeicher
+            // StringBuilder schont den Arbeitsspeicher massiv
             var sb = new StringBuilder();
             
-            sb.AppendLine("📁 Ordner:");
-            if (dirs.Length == 0)
+            sb.AppendLine("Ordner:");
+            foreach (var d in dirs)
             {
-                sb.AppendLine("- (keine Unterordner)");
-            }
-            else
-            {
-                foreach (var d in dirs)
-                {
-                    sb.AppendLine($"- {Path.GetFileName(d)}");
-                }
+                sb.AppendLine($"- {Path.GetFileName(d)}");
             }
 
-            sb.AppendLine("\n📄 Dateien:");
-            if (files.Length == 0)
+            sb.AppendLine("\nDateien:");
+            foreach (var f in files)
             {
-                sb.AppendLine("- (keine Dateien)");
-            }
-            else
-            {
-                foreach (var f in files)
-                {
-                    sb.AppendLine($"- {Path.GetFileName(f)}");
-                }
+                sb.AppendLine($"- {Path.GetFileName(f)}");
             }
 
             return sb.ToString();
         }
-        catch (UnauthorizedAccessException)
+        catch (DirectoryNotFoundException)
         {
-            return $"❌ Keine Berechtigung, um das Verzeichnis aufzulisten: {path}";
+            return $"❌ Ordner nicht gefunden: {path}";
         }
         catch (Exception ex)
         {
-            return $"❌ Fehler beim Auflisten des Verzeichnisses '{path}': {ex.Message}";
+            return $"❌ Fehler beim Auflisten: {ex.Message}";
         }
     }
 
-    /// <summary>
-    /// Löscht eine Datei sicher vom Dateisystem.
-    /// </summary>
     [KernelFunction]
     public string DeleteFile(string path)
     {
         try
         {
-            File.Delete(path); // File.Delete wirft in .NET KEINE Exception, wenn die Datei nicht existiert!
+            // Direktes Löschen versuchen
+            File.Delete(path);
             return $"🗑️ Datei erfolgreich gelöscht: {path}";
         }
-        catch (UnauthorizedAccessException)
+        catch (FileNotFoundException)
         {
-            return $"❌ Keine Berechtigung zum Löschen der Datei: {path}";
+            return $"❌ Datei existiert nicht: {path}";
         }
         catch (Exception ex)
         {
-            return $"❌ Fehler beim Löschen der Datei '{path}': {ex.Message}";
+            return $"❌ Fehler beim Löschen: {ex.Message}";
         }
     }
 }

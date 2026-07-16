@@ -10,10 +10,9 @@ public class MemorySkill
 {
     private static readonly string MemoryFilePath = "memory.json";
     
-    // Thread-Sicherheit: Verhindert Abstürze bei gleichzeitigen Lese- und Schreibzugriffen
+    // Lock-Objekt zur Absicherung gegen Multithreading-Kollisionen
     private static readonly object LockObject = new();
     
-    // Struktur: Erste Ebene = Kategorie, Zweite Ebene = Key -> Value
     private static Dictionary<string, Dictionary<string, string>> _memory = new(StringComparer.OrdinalIgnoreCase);
 
     public MemorySkill()
@@ -23,7 +22,7 @@ public class MemorySkill
 
     private static void SaveMemory()
     {
-        lock (LockObject) // Absichern vor Multithreading-Kollisionen
+        lock (LockObject)
         {
             try
             {
@@ -54,13 +53,11 @@ public class MemorySkill
 
                 if (data != null)
                 {
-                    // Case-insensitive Dictionary für fehlerfreie Suchen erstellen
                     _memory = new Dictionary<string, Dictionary<string, string>>(data, StringComparer.OrdinalIgnoreCase);
                 }
             }
             catch (JsonException)
             {
-                // Falls die JSON-Datei beschädigt ist, Backup erstellen und leer starten
                 Console.WriteLine("⚠️ Gedächtnisdatei beschädigt. Erstelle leeres Gedächtnis.");
                 try
                 {
@@ -103,10 +100,10 @@ public class MemorySkill
                 catDict[key] = value;
                 
                 SaveMemory();
-                return $"💾 Unter Kategorie '{category}' gemerkt: {value}";
+                return $"Saved under category '{category}': {value}";
             }
 
-            // Format 2: Schlüssel=Wert (Standard-Kategorie: general)
+            // Format 2: Schlüssel=Wert (Standard: general)
             if (input.Contains('='))
             {
                 var parts = input.Split('=', 2);
@@ -122,10 +119,10 @@ public class MemorySkill
                 generalDict[key] = value;
 
                 SaveMemory();
-                return $"💾 Schlüssel-Wert gemerkt: {key} = {value}";
+                return $"Saved key-value: {key} = {value}";
             }
 
-            return "❌ Ungültiges Format. Nutze 'Kategorie: Text' oder 'Schlüssel=Wert'.";
+            return "Invalid format. Use 'category: text' or 'key=value'.";
         }
     }
 
@@ -135,17 +132,16 @@ public class MemorySkill
         lock (LockObject)
         {
             if (_memory.Count == 0)
-                return "📭 Das Gedächtnis ist leer.";
+                return "Memory is empty.";
 
             var sb = new StringBuilder();
 
-            // Bestimmte Kategorie anzeigen
             if (!string.IsNullOrEmpty(category))
             {
                 if (!_memory.TryGetValue(category, out var catDict) || catDict.Count == 0)
-                    return $"🔍 Keine Einträge in der Kategorie '{category}' gefunden.";
+                    return $"No entries in category '{category}'.";
 
-                sb.AppendLine($"🧠 Gedächtnis in Kategorie '{category}':");
+                sb.AppendLine($"Memory in category '{category}':");
                 foreach (var kv in catDict)
                 {
                     sb.AppendLine($"- {kv.Key}: {kv.Value}");
@@ -153,8 +149,7 @@ public class MemorySkill
                 return sb.ToString();
             }
 
-            // Gesamtes Gedächtnis (alle Kategorien) anzeigen
-            sb.AppendLine("🧠 Gesamtes Gedächtnis:");
+            sb.AppendLine("All memory:");
             foreach (var cat in _memory)
             {
                 sb.AppendLine($"\n[{cat.Key}]");
@@ -172,19 +167,17 @@ public class MemorySkill
     public string Forget(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
-            return "❌ Kein Suchbegriff zum Vergessen angegeben.";
+            return "❌ Kein Suchbegriff angegeben.";
 
         lock (LockObject)
         {
-            // Komplettes Gedächtnis löschen bei '*'
             if (input == "*")
             {
                 _memory.Clear();
                 SaveMemory();
-                return "🗑️ Komplettes Gedächtnis gelöscht.";
+                return "Memory cleared.";
             }
 
-            // Format: Kategorie: Wert
             if (input.Contains(':'))
             {
                 var parts = input.Split(':', 2);
@@ -192,31 +185,29 @@ public class MemorySkill
                 var value = parts[1].Trim();
 
                 if (!_memory.TryGetValue(category, out var catDict))
-                    return $"🔍 Kategorie '{category}' nicht gefunden.";
+                    return $"Category '{category}' not found.";
 
                 var entry = catDict.FirstOrDefault(kv => kv.Value.Equals(value, StringComparison.OrdinalIgnoreCase));
 
                 if (entry.Key == null)
-                    return $"🔍 Eintrag '{value}' in Kategorie '{category}' nicht gefunden.";
+                    return $"Entry not found in '{category}'.";
 
                 catDict.Remove(entry.Key);
-                
-                // Leere Kategorien direkt aufräumen
+
                 if (catDict.Count == 0)
                     _memory.Remove(category);
 
                 SaveMemory();
-                return $"🗑️ Aus '{category}' gelöscht: {value}";
+                return $"Removed from '{category}': {value}";
             }
 
-            // Format: Schlüssel=Wert (Löscht einen Schlüssel aus general)
             if (input.Contains('='))
             {
                 var parts = input.Split('=', 2);
                 var key = parts[0].Trim();
 
                 if (!_memory.TryGetValue("general", out var generalDict))
-                    return "🔍 Keine Einträge unter 'general' gefunden.";
+                    return "No general memory found.";
 
                 if (generalDict.Remove(key))
                 {
@@ -224,22 +215,21 @@ public class MemorySkill
                         _memory.Remove("general");
 
                     SaveMemory();
-                    return $"🗑️ Schlüssel '{key}' gelöscht.";
+                    return $"Removed key '{key}'.";
                 }
-                return $"🔍 Schlüssel '{key}' nicht gefunden.";
+                return $"Key '{key}' not found.";
             }
 
-            // Format: Nur der Schlüssel-Name (Löscht direkt aus general)
             if (_memory.TryGetValue("general", out var genDict) && genDict.Remove(input))
             {
                 if (genDict.Count == 0)
                     _memory.Remove("general");
 
                 SaveMemory();
-                return $"🗑️ Schlüssel '{input}' gelöscht.";
+                return $"Removed key '{input}'.";
             }
 
-            return "❌ Ungültiges Format zum Löschen.";
+            return "Invalid format.";
         }
     }
 
@@ -247,13 +237,12 @@ public class MemorySkill
     public string SearchMemory(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return "❌ Kein Suchbegriff übergeben.";
+            return "❌ Kein Suchbegriff angegeben.";
 
         lock (LockObject)
         {
             var results = new List<string>();
 
-            // Durchsuche alle Kategorien und Werte
             foreach (var category in _memory)
             {
                 foreach (var kv in category.Value)
@@ -267,10 +256,10 @@ public class MemorySkill
             }
 
             if (results.Count == 0)
-                return $"🔍 Keine Gedächtniseinträge gefunden, die '{text}' enthalten.";
+                return $"No memory entries found containing '{text}'.";
 
             var sb = new StringBuilder();
-            sb.AppendLine("🔍 Suchergebnisse im Gedächtnis:");
+            sb.AppendLine("Search results:");
             foreach (var result in results)
             {
                 sb.AppendLine(result);

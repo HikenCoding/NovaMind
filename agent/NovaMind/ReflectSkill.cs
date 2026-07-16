@@ -1,23 +1,19 @@
+using System.Threading.Tasks;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 
-public class ReflectSkill
+// C# 12 Primary Constructor
+public class ReflectSkill(IChatCompletionService chatCompletion)
 {
-    private readonly IChatCompletionService _chat;
-
-    public ReflectSkill(IChatCompletionService chat)
-    {
-        _chat = chat;
-    }
-
     [KernelFunction]
     public async Task<string> Reflect(string input)
     {
-        var chat = new ChatHistory();
-        chat.AddSystemMessage("Du bist ein Reflexionsmodul. Analysiere das Ergebnis und gib eine kurze Bewertung ab.");
-        chat.AddUserMessage($"Reflektiere dieses Ergebnis:\n\n{input}");
+        var chatHistory = new ChatHistory();
+        chatHistory.AddSystemMessage("Du bist ein Reflexionsmodul. Analysiere das Ergebnis und gib eine kurze Bewertung ab.");
+        chatHistory.AddUserMessage($"Reflektiere dieses Ergebnis:\n\n{input}");
 
-        var result = await _chat.GetChatMessageContentAsync(chat);
-        return result.Content ?? "";
+        // Nutzt den direkt injizierten Service aus dem Primary Constructor
+        var result = await chatCompletion.GetChatMessageContentAsync(chatHistory);
+        return result.Content ?? string.Empty;
     }
 }
