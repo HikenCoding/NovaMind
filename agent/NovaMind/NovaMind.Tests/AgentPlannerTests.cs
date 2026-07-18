@@ -229,15 +229,10 @@ public class AgentPlannerTests
 
 
 
-    [Fact]
+   [Fact]
     public async Task Execute_BidirectionalCobolMigration_ShouldReturnFunctionalCode()
     {
-        // Arrange: Kernel und Plugins vorbereiten
-        var kernelMock = new Mock<Kernel>();
-        var pluginCollection = new Mock<IPluginVerified>(); // Falls du ein Interface nutzt, sonst passenden Kernel-Typ wählen
-        
-        // Da wir den echten LLM-Aufruf im Integrationstest oft simulieren, 
-        // testen wir hier die Datei- und Argumentlogik des Workflows.
+        // Arrange: Test-Eingaben und Pfade vorbereiten
         string testInputPath = "TestProgram.cs";
         string testCSharpCode = "using System; class Program { static void Main() { Console.WriteLine(\"Hello World\"); } }";
         
@@ -259,14 +254,13 @@ public class AgentPlannerTests
             Directory.CreateDirectory(testTargetDirectory);
         }
         
-        // Simuliere erfolgreiches Schreiben
+        // Simuliere erfolgreiches Schreiben des COBOL-Ergebnisses
         string dummyCobolResult = "IDENTIFICATION DIVISION. PROGRAM-ID. HELLO-WORLD.";
         await File.WriteAllTextAsync(expectedCobolPath, dummyCobolResult);
         
         Assert.True(File.Exists(expectedCobolPath), "Die COBOL-Datei wurde nicht im NovaMind_Workspace gespeichert.");
 
-        // Act & Assert für den Rückweg (COBOL -> Python/C#)
-        string targetLang = "python";
+        // Act & Assert für den Rückweg (COBOL -> Zielsprache)
         string testMigrationDir = Path.Combine(repoRoot, "NovaMind_Workspace", "Migration");
         string expectedMigrationPath = Path.Combine(testMigrationDir, "TestProgram.py");
 
