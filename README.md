@@ -1,188 +1,201 @@
-# 🧠 NovaMind - Loakler KI-Agent CLI (C# + Semantic Kernel + Ollama)
+# 🧠 NovaMind - Lokaler KI-Agent für die Kommandozeile (C# + Semantic Kernel + Ollama)
 
 ![.NET Core CI](https://github.com/HikenCoding/NovaMind/actions/workflows/ci.yml/badge.svg)
 
-NovaMind ist ein modularer, erweiterbarer KI‑Agent, der Dateien liest, Code analysiert, PDFs zusammenfasst, Memory speichert, Pläne erstellt und mehr.
-Das Projekt basiert auf Semantic Kernel, Ollama und einem selbst entwickelten LLM‑Planner, der natürliche Sprache in ausführbare Schritte übersetzt.
+NovaMind ist ein modularer KI-Agent, der vollständig lokal auf dem eigenen Rechner läuft. Das Projekt soll wiederkehrende Aufgaben wie Dateioperationen, Codeanalysen, das Auslesen von PDFs oder ein einfaches Wissensmanagement automatisieren. Alles über eine Kommandozeile (CLI).
 
-NovaMind läuft vollständig lokal und benötigt aktuell keine Cloud‑Dienste.
+Für die Umsetzung kommen **Microsoft Semantic Kernel** und **Ollama (Llama 3)** zum Einsatz. Im Mittelpunkt steht ein selbst entwickelter **Zero-Shot Task-Oriented Agent Planner**, der Eingaben in natürlicher Sprache analysiert und daraus eine Abfolge von Arbeitsschritten erstellt. Da das gesamte System lokal läuft, bleiben alle Daten auf dem eigenen Rechner und es entstehen keine API-Kosten.
 
+---
 
-# ✅ Aktuelle Features 
+# ✅ Features
 
-# 📅 LLM‑Planner (AgentPlanner)
-- Wandelt natürliche Sprache in strukturierte JSON‑Pläne um
-- Führt mehrere Schritte automatisch aus
-- Erkennt Dateien, Skills und Funktionen
-- Repariert fehlerhafte LLM‑Ausgaben (Validator + Auto‑Fix)
-- Hängt automatisch einen Reflexions‑Schritt an
-- JSON‑Sanitizer entfernt Text vor/nach dem JSON
+## 📋 Agent Planner (`AgentPlanner.cs`)
 
-# 🛠️ Skills (Plugins)
-NovaMind besitzt mehrere modulare Skills:
-- FileSkill -> Dateien lesen, schreiben, löschen, auflisten
-- PdfSkill ->	PDFs lesen, durchsuchen, zusammenfassen
-- CodeSkill ->	Code erklären, TODOs finden, refactoren
-- MemorySkill	-> Informationen speichern, suchen, löschen
-- ReflectSkill ->	Reflektiert das Gesamtergebnis eines Agent‑Plans
-- HelpSkill ->	Zeigt alle verfügbaren Befehle
+Der Agent Planner erstellt aus einer Eingabe einen Ausführungsplan und kümmert sich darum, dass dieser möglichst zuverlässig abgearbeitet werden kann.
 
+- Wandelt natürliche Sprache in mehrstufige JSON-Pläne (`AgentPlan`) um.
+- Bereinigt fehlerhafte JSON-Antworten des Sprachmodells (z. B. Markdown-Codeblöcke oder zusätzlichen Text).
+- Ergänzt fehlende Parameter automatisch, wenn das Modell sie vergessen hat.
+- Erkennt falsche Skill-Zuordnungen und korrigiert sie (z. B. `CodeSkill.ReadFile` → `FileSkill.ReadFile`).
+- Übergibt Ergebnisse automatisch an den nächsten Schritt, sodass Informationen während der Ausführung erhalten bleiben.
 
-# 🤖 Agent‑Modus (/agent)
-Der Agent‑Modus ist das Herzstück des Projekts:
-- Nutzer gibt einen Befehl ein
-- LLM erstellt einen Plan
-- Validator korrigiert Fehler
-- Agent führt jeden Schritt aus
-- Ergebnisse werden gesammelt
-- Am Ende reflektiert der Agent das Gesamtergebnis 
+---
 
-Beispiel (Im CLI unter dem Projektordner navigieren, dann mit "dotnet run" starten)
-/agent speichere die TODOs aus Program.cs im Memory
+## 🛠️ Skills (Plugins)
 
-Der Agent erkennt automatisch:
-1. Datei lesen
-2. TODOs extrahieren
-3. Memory speichern
-4. Reflexion
+Die einzelnen Funktionen sind als unabhängige Skills aufgebaut und werden über das `[KernelFunction]`-Attribut im Semantic Kernel registriert.
 
-# 🧩 Projektarchitektur
+### 📁 FileSkill
+- Dateien lesen, schreiben, löschen und Verzeichnisse auflisten.
 
-<img width="471" height="410" alt="image" src="https://github.com/user-attachments/assets/01faa366-3f5d-4f11-a6d7-659fc97fb40c" />
+### 📄 PdfSkill
+- PDFs auslesen, durchsuchen und zusammenfassen.
 
+### 💻 CodeSkill
+- Quellcode analysieren, Code Smells und TODOs finden sowie Verbesserungsvorschläge erstellen.
 
+### 🧠 MemorySkill
+- Speichert Informationen dauerhaft in einer JSON-Datei und ermöglicht das Suchen, Anzeigen und Löschen von Einträgen.
 
+### 🔍 ReflectSkill
+- Überprüft am Ende eines Agent-Plans das Ergebnis und bewertet die Ausführung.
 
-# 🔌 Wie NovaMind funktioniert
+### ❓ HelpSkill
+- Zeigt alle verfügbaren CLI-Befehle an.
 
-1. Program.cs (Das Kontrollzentrum)
-Program.cs:
-- baut den Kernel
-- registriert alle Skills
-- startet die CLI
-- erkennt Befehle wie /pdf, /code, /memory
-- führt Skills direkt aus
-- oder startet den Agent‑Modus
+---
 
-Der Agent-Modus:
-1. /agent <text> wird eingegeben
-2. Program.cs ruft AgentPlanner.CreateLLMPlanAsync() auf
-3. Der Plan wird Schritt für Schritt ausgeführt
-4. Ergebnisse werden gesammelt
-5. ReflectSkill bewertet das Gesamtergebnis
+# 🤖 Agent-Modus (`/agent`)
 
+Wird eine Anfrage mit `/agent` gestartet, läuft sie in mehreren Schritten ab:
 
-2. AgentPlanner (Der Kopf des Agenten)
-Der Planner ist das Herzstück des Systems.
-Er übernimmt:
-## 📅 LLM-Planung
-Er erstellt aus natürlicher Sprache einen JSON-Plan:
+1. Der Benutzer gibt eine Aufgabe in natürlicher Sprache ein.
+2. Das Sprachmodell erstellt daraus einen Ausführungsplan.
+3. Der Planner prüft die JSON-Struktur und ergänzt fehlende Informationen.
+4. Anschließend werden alle Schritte nacheinander ausgeführt.
+5. Die Ergebnisse werden automatisch an die folgenden Schritte weitergegeben.
+6. Zum Schluss überprüft der ReflectSkill das Gesamtergebnis.
 
-<img width="397" height="210" alt="image" src="https://github.com/user-attachments/assets/9bd574ec-2e7c-4721-9f7f-26a90b84ea42" />
+## 🧪 Beispiel
 
+Projekt starten:
 
-# JSON-Sanitizer
-Entfernt Text vor "{" und nach "}".
+```bash
+dotnet run
+```
 
-# Validator
-Korrigiert falsche Skill/Funktions-Kombinationen:
-- LLM erzeugt: CodeSkill.ReadFile
-- Validator korrigiert zu: FileSkill.ReadFile
+Danach kann beispielsweise folgender Befehl ausgeführt werden:
 
-# Auto-Fix
-Ergänzt fehlende Argumente:
-- path → automatisch aus User‑Input extrahiert
-- lang → automatisch gesetzt
+```bash
+NovaMind> /agent speichere die TODOs aus Program.cs im Memory
+```
 
-# Reflect-Step
-Jeder Plan endet mit: 
-ReflectSkill.Reflect
+Intern wird daraus ungefähr folgende Ausführung:
 
+1. `FileSkill.ReadFile` liest den Quellcode ein.
+2. `CodeSkill.FindIssues` sucht nach TODOs.
+3. `MemorySkill.Remember` speichert die gefundenen Einträge.
+4. `ReflectSkill.Reflect` überprüft das Ergebnis.
 
-🧩 3. Skills (Die Werkzeuge des Agenten)
+---
 
-📁 FileSkill
-- ReadFile(path)
-- WriteFile(path, content)
-- ListFiles(path)
-- DeleteFile(path)
+# 🏗️ Architektur
 
-📄 PdfSkill
-- ReadPdf(path)
-- SearchPdf(path, search)
-- SummarizePdf(path)
+Beim Aufbau von NovaMind war mir wichtig, die einzelnen Komponenten sauber voneinander zu trennen. Dadurch lassen sich neue Skills einfach hinzufügen oder bestehende erweitern.
 
-💻 CodeSkill
-- ReadCode(path)
-- ExplainCode(path, lang)
-- FindIssues(path, lang)
-- RefactorCode(path, lang)
+## 1. Program.cs
 
-🔮 MemorySkill
-- Remember(input)
-- ShowMemory(category)
-- SearchMemory(text)
-- Forget(input)
+`Program.cs` ist der Einstiegspunkt der Anwendung.
 
-🔍 ReflectSkill
-- Reflect(input) → fasst das Gesamtergebnis zusammen
+Hier werden:
 
-❓ HelpSkill
-- ShowHelp()
+- der Dependency-Injection-Container eingerichtet,
+- das Semantic Kernel initialisiert,
+- alle Skills registriert,
+- die CLI gestartet und
+- entschieden, ob ein Befehl direkt ausgeführt oder an den Agent Planner übergeben wird.
 
+Direkte Befehle wie `/readfile` werden sofort ausgeführt. Komplexere Aufgaben übernimmt der Agent Planner.
 
-# 🧪 Beispiele
-- PDF zusammenfassen
-/agent fasse rechnung.pdf zusammen
+---
 
-- TODOs extrahieren und speichern
-/agent speichere die TODOs aus Program.cs im Memory
+## 2. AgentPlanner
 
-- Code erklären
-/agent erkläre Program.cs
+Der Agent Planner bildet die zentrale Logik des Projekts. Er sorgt dafür, dass aus einer Eingabe in natürlicher Sprache ein ausführbarer Plan entsteht.
 
-- Ordner analysieren
-/agent analysiere alle Dateien im src Ordner
+### JSON-Sanitizer
 
-# 🔧 Voraussetzungen
-- .NET 8
-- Ubuntu 22.04 (WSL2)
-- Ollama installiert
-- Modell: llama3:latest
-- Semantic Kernel 1.x
+Sprachmodelle liefern ihre Antworten nicht immer als gültiges JSON zurück. Der Sanitizer entfernt zusätzlichen Text oder Markdown-Codeblöcke und extrahiert nur den eigentlichen JSON-Inhalt.
 
-# ▶️ Starten
-- dotnet run
+### Auto-Fix
 
- # 🏗️ Architecture Overview
-# 🐧Ubuntu (WSL2)
-Isolierte Entwicklungsumgebung
-- Hält Windows vollständig privat und unangetastet
-- Hostet alle KI‑Komponenten getrennt vom Hauptsystem
+Falls das Modell wichtige Parameter wie Dateipfade oder die Programmiersprache vergisst, versucht der Planner diese automatisch aus dem aktuellen Kontext zu ergänzen.
 
-# 🦙 Ollama
-Lokale KI‑Engine
-- Führt Modelle wie "llama3:latest" direkt auf deinem Rechner aus
-- bietet schnelle und vollständige antworten offline
+### Validator
 
-# 👨🏽‍💻 Semantic Kernel
-Framework zur Agenten‑Orchestrierung
-- Verbindet deinen C#‑Code mit dem KI‑Modell
-- Ermöglicht Tools/Skills, Memory, Planung und mehrstufiges Reasoning
+Gelegentlich verwendet das Sprachmodell falsche Skills oder Funktionsnamen.
 
+Beispiel:
 
-# 🌠 Zukunftsideen:
-- Web UI erstellen
-- Datenbank hinzufügen (Open Source)
-- Containisieren
-- In eine Cloud (Open Source) deployen
+```text
+CodeSkill.ReadFile
+```
 
+wird automatisch zu
 
+```text
+FileSkill.ReadFile
+```
 
-Viel Spaß beim Lesen und ausprobieren! 🔥🤖
+korrigiert.
 
+### Reflect-Schritt
 
+Jeder Agent-Plan endet automatisch mit einem Aufruf von `ReflectSkill.Reflect`. Dadurch wird das Ergebnis noch einmal überprüft und kurz bewertet.
 
+---
 
+## 💡 Technische Details
 
+Ein paar technische Entscheidungen, die im Projekt umgesetzt wurden:
 
+### Thread-sicheres Memory
+
+Der Zugriff auf die `memory.json` wird über ein gemeinsames Lock abgesichert. Dadurch können mehrere Threads nicht gleichzeitig dieselbe Datei verändern und Race Conditions werden vermieden.
+
+### Sichere Dateioperationen
+
+Bei Dateioperationen wird nach dem EAFP-Prinzip gearbeitet ("Easier to Ask for Forgiveness than Permission"). Anstatt zuerst mit `File.Exists()` zu prüfen, wird direkt auf die Datei zugegriffen und mögliche Fehler anschließend behandelt. Dadurch werden typische TOCTOU-Probleme vermieden.
+
+### Effiziente Verarbeitung
+
+Beim Durchlaufen größerer Verzeichnisse kommt `StringBuilder` zum Einsatz, um unnötige Speicherallokationen zu vermeiden.
+
+### Modernes C#
+
+Das Projekt nutzt aktuelle Sprachfeatures aus C# 12, beispielsweise Primary Constructors. Dadurch wird der Code übersichtlicher und Boilerplate für Dependency Injection reduziert.
+
+---
+
+# 🛠️ Verfügbare Skills
+
+## 📁 FileSkill
+
+- `ReadFile(path)` – Liest Textdateien.
+- `WriteFile(path, content)` – Schreibt Inhalte in Dateien.
+- `ListFiles(path)` – Listet Dateien und Ordner auf.
+- `DeleteFile(path)` – Löscht Dateien.
+
+---
+
+## 📂 DirectorySkill
+
+- `ListDirectory(path)` – Listet Dateien und Ordner rekursiv auf.
+- `AnalyzeDirectory(path, lang)` – Analysiert einen kompletten Ordner und führt automatisch eine Codeanalyse für gefundene C#-Dateien durch.
+
+---
+
+## 📄 PdfSkill
+
+- `ReadPdf(path)` – Liest den Inhalt einer PDF.
+- `SearchPdf(path, search)` – Sucht nach Begriffen innerhalb einer PDF.
+- `SummarizePdf(path)` – Erstellt eine Zusammenfassung des Inhalts.
+
+---
+
+## 💻 CodeSkill
+
+- `ReadCode(path)` – Liest Quellcode ein.
+- `ExplainCode(path, lang)` – Erklärt den Code.
+- `FindIssues(path, lang)` – Findet TODOs, Code Smells und mögliche Schwachstellen.
+- `RefactorCode(path, lang)` – Erstellt Vorschläge zur Verbesserung des Codes.
+
+---
+
+## 🧠 MemorySkill
+
+- `Remember(input)` – Speichert Informationen dauerhaft.
+- `ShowMemory(category)` – Zeigt Einträge einer Kategorie an.
+- `SearchMemory(text)` – Durchsucht das gesamte Memory.
+- `Forget(input)` – Löscht einzelne Einträge.
