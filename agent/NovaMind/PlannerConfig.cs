@@ -27,7 +27,11 @@ public static class PlannerConfig
             ["reflect"] = ("ReflectSkill", "Reflect"),
 
             ["listdirectory"] = ("DirectorySkill", "ListDirectory"),
-            ["analyzedirectory"] = ("DirectorySkill", "AnalyzeDirectory")
+            ["analyzedirectory"] = ("DirectorySkill", "AnalyzeDirectory"),
+
+            ["cobol"] = ("CodeSkill", "ToCobol"),
+            ["tocobol"] = ("CodeSkill", "ToCobol"),
+            ["wandleincobol"] = ("CodeSkill", "ToCobol")
         };
 
         public static readonly Dictionary<string, (string skill, string function)> FunctionAliases = new()

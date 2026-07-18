@@ -57,6 +57,19 @@ public class CodeSkill(IChatCompletionService chat) // 🚀 C# 12: Primary Const
         return await CallLlmAsync(systemPrompt, $"Refactore diesen Code:\n\n{code}");
     }
 
+    [KernelFunction]
+    public async Task<string> ToCobol(string path)
+    {
+        var code = SafeReadFile(path);
+        if (code.StartsWith("Fehler") || code.StartsWith("File not found")) 
+            return code;
+
+        var systemPrompt = "Du bist ein Experte für Software-Migration. Übersetze den folgenden Programmcode VOLLSTÄNDIG und ZEILE FÜR ZEILE in sauberen, standardkonformen COBOL-Code. Kürze den Code NIEMALS mit '...' ab. Definiere alle Variablen in der DATA DIVISION und bilde die gesamte Programmlogik lückenlos ab. Gib NUR den reinen COBOL-Code zurück.";
+
+        return await CallLlmAsync(systemPrompt, $"Übersetze diesen Code nach COBOL:\n\n{code}");
+    }
+
+
     #region Private Helpers
 
     /// <summary>

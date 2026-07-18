@@ -57,6 +57,36 @@ while (true)
     // Sprache der aktuellen Eingabe erkennen
     lang = LanguageDetector.Detect(input);
 
+    //COBOL
+    if (input.StartsWith("/cobol"))
+    {
+        var path = input.Replace("/cobol", "").Trim();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("⚠️ Bitte gib einen Dateipfad an. Beispiel: /cobol Program.cs");
+            continue;
+        }
+
+        try 
+        {
+            var codeSkill = kernel.Plugins["CodeSkill"];
+            var function = codeSkill["ToCobol"];
+            
+            // 🔥 Hier geändert: 'args' zu 'cobolArgs' umbenannt, um Namenskonflikte zu vermeiden
+            var cobolArgs = new KernelArguments { ["path"] = path };
+            var cobolResult = await kernel.InvokeAsync<string>(function, cobolArgs);
+            
+            Console.WriteLine("\n📜 Generierter COBOL-Code:\n");
+            Console.WriteLine(cobolResult);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Fehler bei der COBOL-Übersetzung: {ex.Message}");
+        }
+        
+        continue;
+    }
+
     try
     {
         // --- BEFEHLS-VERTEILER (Command Router) ---
