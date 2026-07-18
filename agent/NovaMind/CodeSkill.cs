@@ -69,6 +69,23 @@ public class CodeSkill(IChatCompletionService chat) // 🚀 C# 12: Primary Const
         return await CallLlmAsync(systemPrompt, $"Übersetze diesen Code nach COBOL:\n\n{code}");
     }
 
+    [KernelFunction]
+    public async Task<string> FromCobol(string path, string targetLanguage = "csharp")
+    {
+        // Nutze deine bestehende sichere Methode zum Einlesen der Datei
+        var cobolCode = SafeReadFile(path);
+        if (cobolCode.StartsWith("Fehler") || cobolCode.StartsWith("File not found")) 
+            return cobolCode;
+
+       var systemPrompt = $"Du bist ein isolierter Übersetzer für Software-Migration. " +
+                   $"Übersetze den COBOL-Code in die Zielsprache '{targetLanguage}'. " +
+                   $"HINWEIS: Du hast KEINEN Zugriff auf das Dateisystem. Schreibe NIEMALS Code in reale Dateien auf der Festplatte. " +
+                   $"Gib den übersetzten Code AUSSCHLIESSLICH als reinen Text in deiner Antwort zurück. " +
+                   $"Kürze den Code niemals ab und verwende keine Markdown-Erklärungen.";
+
+        return await CallLlmAsync(systemPrompt, $"Übersetze diesen COBOL-Code nach {targetLanguage}:\n\n{cobolCode}");
+    }
+
 
     #region Private Helpers
 

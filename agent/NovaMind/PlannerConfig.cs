@@ -31,7 +31,11 @@ public static class PlannerConfig
 
             ["cobol"] = ("CodeSkill", "ToCobol"),
             ["tocobol"] = ("CodeSkill", "ToCobol"),
-            ["wandleincobol"] = ("CodeSkill", "ToCobol")
+            ["wandleincobol"] = ("CodeSkill", "ToCobol"),
+
+            ["fromcobol"] = ("CodeSkill", "FromCobol"),
+            ["modernisiere"] = ("CodeSkill", "FromCobol"),
+            ["cobolzucsharp"] = ("CodeSkill", "FromCobol")
         };
 
         public static readonly Dictionary<string, (string skill, string function)> FunctionAliases = new()

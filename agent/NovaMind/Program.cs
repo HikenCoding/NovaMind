@@ -57,7 +57,8 @@ while (true)
     // Sprache der aktuellen Eingabe erkennen
     lang = LanguageDetector.Detect(input);
 
-    //COBOL
+
+    // 📜 C# -> COBOL
     if (input.StartsWith("/cobol"))
     {
         var path = input.Replace("/cobol", "").Trim();
@@ -79,37 +80,103 @@ while (true)
             Console.WriteLine("\n📜 Generierter COBOL-Code:\n");
             Console.WriteLine(cobolResult);
 
-            // --- Automatisches Speichern im Ordner 'Cobol' ---
-            // 1. Zielordner definieren und erstellen, falls er fehlt
-            string targetDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Cobol");
+            // --- Automatisches Speichern außerhalb des Projekts ---
+            string repoRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".."));
+            string targetDirectory = Path.Combine(repoRoot, "NovaMind_Workspace", "Cobol");
+
             if (!Directory.Exists(targetDirectory))
             {
                 Directory.CreateDirectory(targetDirectory);
             }
 
-            // 2. Den reinen Dateinamen ohne Pfad holen (z.B. "Program.cs")
             string originalFileName = Path.GetFileName(path);
-            
-            // 3. Die Endung durch .cob ersetzen (z.B. "Program.cob")
             string newFileName = Path.ChangeExtension(originalFileName, ".cob");
             string fullTargetFilePath = Path.Combine(targetDirectory, newFileName);
 
-            // 4. Den generierten Code in die Datei schreiben
             await File.WriteAllTextAsync(fullTargetFilePath, cobolResult, Encoding.UTF8);
-            
-            Console.WriteLine($"\n💾 Datei erfolgreich gespeichert unter: {Path.Combine("Cobol", newFileName)}");
+            Console.WriteLine($"\n💾 COBOL-Datei erfolgreich außerhalb des Projekts gespeichert:\n📍 {fullTargetFilePath}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Fehler bei der COBOL-Übersetzung oder beim Speichern: {ex.Message}");
+            Console.WriteLine($"❌ Fehler bei der COBOL-Übersetzung: {ex.Message}");
         }
         
         continue;
     }
 
+    // COBOL -> Moderne Sprache
+    if (input.StartsWith("/fromcobol"))
+    {
+        var argumentsText = input.Replace("/fromcobol", "").Trim();
+        if (string.IsNullOrWhiteSpace(argumentsText))
+        {
+            Console.WriteLine("⚠️ Bitte gib einen Pfad an. Beispiel: /fromcobol Cobol/Program.cob csharp");
+            continue;
+        }
+
+        // Argumente splitten, um Pfad und optionale Zielsprache zu trennen
+        var parts = argumentsText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string cobolPath = parts[0];
+        string targetLang = parts.Length > 1 ? parts[1] : "csharp"; 
+
+        try 
+        {
+            var codeSkill = kernel.Plugins["CodeSkill"];
+            var function = codeSkill["FromCobol"];
+            
+            var migrationArgs = new KernelArguments 
+            { 
+                ["path"] = cobolPath,
+                ["targetLanguage"] = targetLang
+            };
+
+            Console.WriteLine($"⏳ Analysiere COBOL-Code und migriere nach {targetLang}...");
+            var migrationResult = await kernel.InvokeAsync<string>(function, migrationArgs);
+            
+            Console.WriteLine($"\n✨ Migrierter {targetLang}-Code:\n");
+            Console.WriteLine(migrationResult);
+
+            // --- Automatisches Speichern außerhalb des Projekts ---
+            string repoRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".."));
+            string migrationDir = Path.Combine(repoRoot, "NovaMind_Workspace", "Migration");
+
+            if (!Directory.Exists(migrationDir))
+            {
+                Directory.CreateDirectory(migrationDir);
+            }
+
+            string originalFileName = Path.GetFileName(cobolPath);
+
+            // Dynamisches Endungs-Mapping für die Zielsprache
+            string extension = targetLang.ToLower() switch
+            {
+                "java" => ".java",
+                "python" => ".py",
+                "py" => ".py",
+                "javascript" => ".js",
+                "js" => ".js",
+                "typescript" => ".ts",
+                "ts" => ".ts",
+                _ => ".cs" // Standardwert für csharp und alles andere
+            };
+
+            string newFileName = Path.ChangeExtension(originalFileName, extension);
+            string fullMigrationFilePath = Path.Combine(migrationDir, newFileName);
+            
+            await File.WriteAllTextAsync(fullMigrationFilePath, migrationResult, Encoding.UTF8);
+            Console.WriteLine($"\n💾 Migrierte Datei erfolgreich außerhalb des Projekts gespeichert:\n📍 {fullMigrationFilePath}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Fehler bei der Legacy-Migration: {ex.Message}");
+        }
+        
+        continue; // Wichtig, damit der Command Router danach übersprungen wird!
+    }
+
     try
     {
-        // --- BEFEHLS-VERTEILER (Command Router) ---
+        
         if (input.StartsWith('/'))
         {
             await HandleCommandAsync(input);
