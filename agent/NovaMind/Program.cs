@@ -72,16 +72,36 @@ while (true)
             var codeSkill = kernel.Plugins["CodeSkill"];
             var function = codeSkill["ToCobol"];
             
-            // 🔥 Hier geändert: 'args' zu 'cobolArgs' umbenannt, um Namenskonflikte zu vermeiden
             var cobolArgs = new KernelArguments { ["path"] = path };
+            Console.WriteLine($"⏳ Analysiere {path} und generiere COBOL-Code...");
             var cobolResult = await kernel.InvokeAsync<string>(function, cobolArgs);
             
             Console.WriteLine("\n📜 Generierter COBOL-Code:\n");
             Console.WriteLine(cobolResult);
+
+            // --- Automatisches Speichern im Ordner 'Cobol' ---
+            // 1. Zielordner definieren und erstellen, falls er fehlt
+            string targetDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Cobol");
+            if (!Directory.Exists(targetDirectory))
+            {
+                Directory.CreateDirectory(targetDirectory);
+            }
+
+            // 2. Den reinen Dateinamen ohne Pfad holen (z.B. "Program.cs")
+            string originalFileName = Path.GetFileName(path);
+            
+            // 3. Die Endung durch .cob ersetzen (z.B. "Program.cob")
+            string newFileName = Path.ChangeExtension(originalFileName, ".cob");
+            string fullTargetFilePath = Path.Combine(targetDirectory, newFileName);
+
+            // 4. Den generierten Code in die Datei schreiben
+            await File.WriteAllTextAsync(fullTargetFilePath, cobolResult, Encoding.UTF8);
+            
+            Console.WriteLine($"\n💾 Datei erfolgreich gespeichert unter: {Path.Combine("Cobol", newFileName)}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Fehler bei der COBOL-Übersetzung: {ex.Message}");
+            Console.WriteLine($"❌ Fehler bei der COBOL-Übersetzung oder beim Speichern: {ex.Message}");
         }
         
         continue;
