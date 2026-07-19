@@ -2,9 +2,12 @@
 
 ![.NET Core CI](https://github.com/HikenCoding/NovaMind/actions/workflows/ci.yml/badge.svg)
 
-NovaMind ist ein modularer KI-Agent, der vollständig lokal auf dem eigenen Rechner läuft. Das Projekt soll wiederkehrende Aufgaben wie Dateioperationen, Codeanalysen, das Auslesen von PDFs oder ein einfaches Wissensmanagement automatisieren. Alles über eine Kommandozeile (CLI).
+NovaMind ist ein modularer KI-Agent für die Kommandozeile, der komplett lokal läuft. Die Idee hinter dem Projekt ist es, alltägliche Aufgaben wie Dateioperationen, Codeanalysen oder das Auslesen von PDFs zu automatisieren, ohne auf externe Cloud-Dienste angewiesen zu sein.
 
-Für die Umsetzung kommen **Microsoft Semantic Kernel** und **Ollama (Llama 3)** zum Einsatz. Im Mittelpunkt steht ein selbst entwickelter **Zero-Shot Task-Oriented Agent Planner**, der Eingaben in natürlicher Sprache analysiert und daraus eine Abfolge von Arbeitsschritten erstellt. Da das gesamte System lokal läuft, bleiben alle Daten auf dem eigenen Rechner und es entstehen keine API-Kosten.
+Für die Umsetzung nutze ich **Microsoft Semantic Kernel** zusammen mit **Ollama (Llama 3)**. Im Hintergrund erstellt ein selbst entwickelter Agent Planner aus einer normalen Texteingabe einen Ausführungsplan und arbeitet die einzelnen Schritte anschließend automatisch ab.
+
+Da das gesamte System lokal ausgeführt wird, bleiben alle Daten auf dem eigenen Rechner und es fallen keine API-Kosten an.
+
 
 ---
 
@@ -199,3 +202,118 @@ Das Projekt nutzt aktuelle Sprachfeatures aus C# 12, beispielsweise Primary Cons
 - `ShowMemory(category)` – Zeigt Einträge einer Kategorie an.
 - `SearchMemory(text)` – Durchsucht das gesamte Memory.
 - `Forget(input)` – Löscht einzelne Einträge.
+
+---
+
+# 🔧 Voraussetzungen
+
+Für NovaMind werden folgende Komponenten benötigt:
+
+- **.NET 8 SDK** oder neuer
+- **Ollama** mit dem Modell `llama3:latest`
+- **Microsoft Semantic Kernel 1.x`
+
+Die Entwicklung findet hauptsächlich unter **Ubuntu (WSL2)** statt. Das Projekt funktioniert aber genauso unter Windows oder macOS, sofern die Voraussetzungen erfüllt sind.
+
+---
+
+# ▶️ Installation
+
+### 1. Ollama starten und das Modell herunterladen
+
+```bash
+ollama run llama3:latest
+```
+
+### 2. Repository klonen
+
+```bash
+git clone https://github.com/HikenCoding/NovaMind.git
+cd NovaMind/agent/NovaMind
+```
+
+### 3. Anwendung starten
+
+```bash
+dotnet run
+```
+
+### 4. Tests ausführen
+
+```bash
+dotnet test NovaMind.Tests/NovaMind.Tests.csproj
+```
+
+---
+
+# 💻 Beispiele
+
+### PDF zusammenfassen
+
+```text
+/agent fasse rechnung.pdf zusammen
+```
+
+### TODOs aus einer Datei speichern
+
+```text
+/agent speichere die TODOs aus Program.cs im Memory
+```
+
+### Code erklären
+
+```text
+/agent erkläre Program.cs
+```
+
+### Kompletten Ordner analysieren
+
+```text
+/agent analysiere alle Dateien im src Ordner
+```
+
+---
+
+# 🏛️ Verwendete Technologien
+
+## 🐧 Ubuntu (WSL2)
+
+Die Entwicklung erfolgt überwiegend unter Ubuntu mit WSL2. Dadurch laufen alle KI-Komponenten in einer getrennten Linux-Umgebung, ohne das Windows-System zusätzlich konfigurieren zu müssen.
+
+## 🦙 Ollama
+
+Ollama stellt das lokale Sprachmodell bereit.
+
+- Führt Modelle wie `llama3:latest` direkt auf dem eigenen Rechner aus.
+- Es werden keine externen Cloud-Dienste benötigt.
+- Alle Daten bleiben lokal.
+
+## 👨‍💻 Microsoft Semantic Kernel
+
+Semantic Kernel übernimmt die Orchestrierung der einzelnen Skills.
+
+Es verbindet den C#-Code mit dem Sprachmodell und ermöglicht unter anderem:
+
+- die Registrierung von Plugins,
+- die Ausführung einzelner Skills,
+- mehrstufige Agent-Pläne sowie
+- die Kommunikation mit dem lokalen LLM.
+
+---
+
+# 🌱 Roadmap
+
+Folgende Ideen möchte ich in Zukunft umsetzen:
+
+- [ ] Weboberfläche für NovaMind entwickeln
+- [ ] Memory von JSON auf eine Open-Source-Datenbank umstellen
+- [ ] Docker-Unterstützung hinzufügen
+- [ ] Deployment auf einer Open-Source-Cloud-Plattform
+
+---
+
+# 🤝 Feedback
+
+Falls dir Fehler auffallen oder du Ideen für neue Funktionen hast, freue ich mich über ein Issue oder einen Pull Request.
+
+Vielen Dank fürs Vorbeischauen und viel Spaß beim Ausprobieren! 🚀
