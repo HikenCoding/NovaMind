@@ -84,6 +84,16 @@ public static class AgentPlanner
         {
             plan.Steps.Add(new AgentStep { Description = $"Erkläre den Code in {file}", SkillName = "CodeSkill", FunctionName = "ExplainCode", Arguments = new() { ["path"] = file, ["lang"] = lang } });
             plan.Steps.Add(new AgentStep { Description = $"Finde Probleme im Code {file}", SkillName = "CodeSkill", FunctionName = "FindIssues", Arguments = new() { ["path"] = file, ["lang"] = lang } });
+            
+            if (inputLower.Contains("merke") || inputLower.Contains("speichere") || inputLower.Contains("memory"))
+            {
+                plan.Steps.Add(new AgentStep { 
+                    Description = "Speichere Analyse-Ergebnisse im Langzeitgedächtnis", 
+                    SkillName = "MemorySkill", 
+                    FunctionName = "Remember", 
+                    Arguments = new() { ["input"] = $"demo_analyse: Analyse von {file} erfolgreich durchgeführt." } 
+                });
+            }
             return plan;
         }
 
